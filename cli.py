@@ -5,7 +5,6 @@ from loguru import logger
 
 from trader.exceptions import TraderException
 from trader.main import Trader
-from trader.client.registration import RegistrationRequestData
 from trader.print import print_alert
 
 
@@ -47,8 +46,7 @@ def cli(ctx):
 def register(call_sign: str, faction: str):
     """Registers and stores token locally"""
     click.echo(f"Registering client for call_sign: {call_sign} ({faction})")
-    details = RegistrationRequestData(call_sign=call_sign, faction=faction)
-    trader.register(data=details)
+    trader.register(call_sign=call_sign, faction=faction)
 
 @trader_command()
 def agent():
@@ -134,6 +132,11 @@ def cargo(call_sign: str):
 def sell(call_sign: str, symbol: str, units: int):
     trader.sell(call_sign=call_sign, symbol=symbol, units=units)
 
+@trader_command()
+@click.argument("call_sign")
+def miner_trader_loop(call_sign: str):
+    trader.miner_trader_loop(call_sign=call_sign)
+
 cli.add_command(agent)
 cli.add_command(agents)
 cli.add_command(cargo)
@@ -153,6 +156,7 @@ cli.add_command(system)
 cli.add_command(systems)
 cli.add_command(waypoints)
 
+cli.add_command(miner_trader_loop)
 
 if __name__ == "__main__":
     cli()

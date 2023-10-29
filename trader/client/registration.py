@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Any
 
-from dataclass_wizard import JSONWizard, json_key
+from dataclass_wizard import JSONWizard, json_field
 
 
 @dataclass
 class RegistrationRequestData(JSONWizard):
-    call_sign: Annotated[str, json_key("symbol")]
     faction: str
+    call_sign: Any = json_field("symbol", all=True)

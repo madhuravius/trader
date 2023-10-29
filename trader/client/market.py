@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from dataclass_wizard import JSONWizard, json_key
 
@@ -55,8 +55,8 @@ class Market(JSONWizard):
     exports: List[Export]
     imports: List[Import]
     exchange: List[Exchange]
-    transactions: List[Transaction]
-    trade_goods: List[TradeGood]
+    transactions: Optional[List[Transaction]] = None
+    trade_goods: Optional[List[TradeGood]] = None
 
 
 @dataclass

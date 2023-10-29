@@ -82,10 +82,11 @@ class Client(metaclass=Singleton):
         self.ensure_success(response)
         return response
 
-    def conduct_request(
+    def execute_single_request(
         self,
         url: str,
         method: str,
+        cache_timeout: Optional[float] = None,
         check_cache: bool = True,
         data: Optional[Dict[str, Any]] = {},
         is_paged: bool = False,
@@ -120,230 +121,239 @@ class Client(metaclass=Singleton):
         response = self.queue.wait_for_response(request_id=request_id)
 
         if check_cache:
-            self.cache.set_kv_cache(
-                method=method, url=url, data=data, response=response, params=params
-            )
+            cache_arguments = {
+                "method": method,
+                "url": url,
+                "data": data,
+                "response": response,
+                "params": params,
+            }
+            if cache_timeout:
+                cache_arguments["cache_timeout"] = cache_timeout
+            self.cache.set_kv_cache(**cache_arguments)
 
         logger.debug(f"📨 {response.status_code} {method}: {url}")
 
         return response
 
+    def conduct_request(
+        self,
+        url: str,
+        method: str,
+        data_type: Type[PayloadTypes],
+        cache_timeout: Optional[float] = None,
+        check_cache: bool = True,
+        data: Optional[Dict[str, Any]] = {},
+        is_paged: bool = False,
+        page: int = 1,
+        requires_auth: bool = True,
+        limit: int = 20,
+    ) -> PayloadTypes:
+        if requires_auth:
+            self.ensure_api_key()
+
+        response = self.execute_single_request(
+            url=url,
+            method=method,
+            cache_timeout=cache_timeout,
+            check_cache=check_cache,
+            data=data,
+            is_paged=is_paged,
+            page=page,
+            limit=limit,
+        )
+
+        result = self.ensure_singular_payload(
+            response_content=response.content, data_type=data_type
+        )
+
+        if is_paged and result.meta and type(result.data) == list:
+            logger.info(
+                f"Querying paged results for total {result.meta.total} entries."
+            )
+            accumulated_total = limit
+            results: List[PayloadTypes] = [result]
+            while accumulated_total < result.meta.total:
+                page += 1
+                paged_result = self.ensure_singular_payload(
+                    response_content=self.execute_single_request(
+                        url=url,
+                        method=method,
+                        cache_timeout=cache_timeout,
+                        check_cache=check_cache,
+                        data=data,
+                        is_paged=is_paged,
+                        page=page,
+                        limit=limit,
+                    ).content,
+                    data_type=data_type,
+                )
+                results.append(paged_result)
+                accumulated_total += limit
+            for paged_result in results:
+                if result.data and paged_result.data:
+                    # below line is commented because
+                    result.data = result.data + paged_result.data  # type: ignore
+
+        return result
+
     def register(self, data: RegistrationRequestData) -> RegistrationResponsePayload:
-        response = self.conduct_request(
+        result = self.conduct_request(
             data=data.to_dict(),
             url=f"{BASE_URL}/register",
             method="POST",
+            check_cache=False,
+            data_type=RegistrationResponsePayload,
+            requires_auth=False,
         )
 
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=RegistrationResponsePayload
-        )
         return cast(RegistrationResponsePayload, result)
 
     def agents(self) -> AgentsPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(url=f"{BASE_URL}/agents", method="GET")
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=AgentsPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/agents", method="GET", data_type=AgentsPayload
         )
+
         return cast(AgentsPayload, result)
 
     def agent(self) -> AgentPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
-            url=f"{BASE_URL}/my/agent", method="GET", check_cache=False
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=AgentPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/agent",
+            method="GET",
+            check_cache=False,
+            data_type=AgentPayload,
         )
         return cast(AgentPayload, result)
 
     def contracts(self) -> ContractsPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(url=f"{BASE_URL}/my/contracts", method="GET")
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=ContractsPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/contracts", method="GET", data_type=ContractsPayload
         )
         return cast(ContractsPayload, result)
 
     def ships(self) -> ShipsPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
-            url=f"{BASE_URL}/my/ships", method="GET", check_cache=False
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=ShipsPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/ships",
+            method="GET",
+            check_cache=False,
+            data_type=ShipsPayload,
         )
         return cast(ShipsPayload, result)
 
     def ship(self, call_sign: str) -> ShipPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}",
             method="GET",
             check_cache=False,
             is_paged=True,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=ShipPayload
+            data_type=ShipPayload,
         )
         return cast(ShipPayload, result)
 
     def system(self, symbol: str) -> SystemPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
-            url=f"{BASE_URL}/systems/{symbol}", method="GET"
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=SystemPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/systems/{symbol}", method="GET", data_type=SystemPayload
         )
         return cast(SystemPayload, result)
 
     def systems(self) -> SystemsPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
-            url=f"{BASE_URL}/systems", method="GET", is_paged=True
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=SystemsPayload
+        result = self.conduct_request(
+            url=f"{BASE_URL}/systems",
+            method="GET",
+            is_paged=True,
+            data_type=SystemsPayload,
         )
         return cast(SystemsPayload, result)
 
     def waypoints(self, system_symbol: str) -> WaypointsPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints",
             method="GET",
             is_paged=True,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=WaypointsPayload
+            data_type=WaypointsPayload,
         )
         return cast(WaypointsPayload, result)
 
     def navigate(self, call_sign: str, waypoint_symbol: str) -> NavigationPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/navigate",
             method="POST",
             data=NavigationRequestData(waypoint_symbol=waypoint_symbol).to_dict(),
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=NavigationPayload
+            data_type=NavigationPayload,
         )
         return cast(NavigationPayload, result)
 
     def orbit(self, call_sign: str) -> OrbitPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/orbit",
             method="POST",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=OrbitPayload
+            data_type=OrbitPayload,
         )
         return cast(OrbitPayload, result)
 
     def dock(self, call_sign: str) -> DockPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/dock",
             method="POST",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=DockPayload
+            data_type=DockPayload,
         )
         return cast(DockPayload, result)
 
     def cargo(self, call_sign: str) -> CargoPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/cargo",
             method="GET",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=CargoPayload
+            data_type=CargoPayload,
         )
         return cast(CargoPayload, result)
 
     def extract(self, call_sign: str) -> ExtractPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/extract",
             method="POST",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=ExtractPayload
+            data_type=ExtractPayload,
         )
         return cast(ExtractPayload, result)
 
     def refuel(self, call_sign: str) -> RefuelPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/refuel",
             method="POST",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=RefuelPayload
+            data_type=RefuelPayload,
         )
         return cast(RefuelPayload, result)
 
     def cooldown(self, call_sign: str) -> CooldownPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/cooldown",
             method="GET",
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=CooldownPayload
+            data_type=CooldownPayload,
         )
         return cast(CooldownPayload, result)
 
     def market(self, system_symbol: str, waypoint_symbol: str) -> MarketPayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/market",
             method="GET",
-            check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=MarketPayload
+            check_cache=True,
+            cache_timeout=300,  # drop cache every 300 seconds or so
+            data_type=MarketPayload,
         )
         return cast(MarketPayload, result)
 
     def sell(self, call_sign: str, symbol: str, units: int) -> SalePayload:
-        self.ensure_api_key()
-        response = self.conduct_request(
+        result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/sell",
             method="POST",
             data=SellCargoRequest(symbol=symbol, units=units).to_dict(),
             check_cache=False,
-        )
-
-        result = self.ensure_singular_payload(
-            response_content=response.content, data_type=SalePayload
+            data_type=SalePayload,
         )
         return cast(SalePayload, result)

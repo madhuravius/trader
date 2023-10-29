@@ -46,7 +46,9 @@ class Cache(metaclass=Singleton):
             serialized_data=json.dumps(data, sort_keys=True),
             params=json.dumps(params, sort_keys=True),
         )
-        logger.debug(f"Getting KV populated with value - {method}: {url} ({id})")
+        logger.debug(
+            f"Getting KV populated with value - {method}: {url} {params} ({id})"
+        )
         try:
             with Session(self.dao.engine) as session:
                 expression = select(CachedRequest).where(CachedRequest.id == id)
@@ -69,6 +71,7 @@ class Cache(metaclass=Singleton):
         response: httpx.Response,
         data: Optional[Dict[str, Any]] = {},
         params: Optional[Dict[str, Any]] = {},
+        cache_timeout: float = DEFAULT_CACHE_TIMEOUT,
     ):
         id = self.generate_cached_request_id(
             method=method,
@@ -84,9 +87,7 @@ class Cache(metaclass=Singleton):
                 url=url,
                 data=json.dumps(data, sort_keys=True),
                 params=json.dumps(data, sort_keys=True),
-                expiration=(
-                    datetime.now() + timedelta(DEFAULT_TIMEOUT_TO_PRUNE_EXPIRATIONS)
-                ).timestamp(),
+                expiration=(datetime.now() + timedelta(cache_timeout)).timestamp(),
                 response=pickle.dumps(response),
             )
             with Session(self.dao.engine) as session:
@@ -107,4 +108,4 @@ class Cache(metaclass=Singleton):
     def run_loop(self):
         while True:
             self.expire_cache_records()
-            sleep(60)
+            sleep(DEFAULT_TIMEOUT_TO_PRUNE_EXPIRATIONS)

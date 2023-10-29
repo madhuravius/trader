@@ -13,13 +13,15 @@ from trader.client.registration import RegistrationRequestData
 from trader.client.ship import Ship
 from trader.client.system import System
 from trader.client.waypoint import Waypoint
+from trader.exceptions import TraderException
+from trader.logic.simple_miner_trader import SimpleMinerTrader
 from trader.print import print_alert, print_as_table
 
 TOKEN_PATH = ".token"
 
 
 class Trader:
-    api_key: Optional[str]
+    api_key: Optional[str] = None
     client: Client
     console = Console()
 
@@ -29,8 +31,13 @@ class Trader:
                 self.api_key = file.read()
         self.client = Client(api_key=self.api_key)
 
-    def register(self, data: RegistrationRequestData) -> None:
-        registration_response = self.client.register(data=data)
+    def register(self, call_sign: str, faction: str) -> None:
+        registration_response = self.client.register(
+            data=RegistrationRequestData(
+                call_sign=call_sign,
+                faction=faction,
+            )
+        )
         with open(TOKEN_PATH, "w") as file:
             token = cast(
                 RegistrationResponse,
@@ -40,7 +47,7 @@ class Trader:
             self.api_key = token
             self.client = Client(api_key=token)
         self.client.ensure_api_key()
-        print_alert(message=f"Registered as {data.call_sign}", console=self.console)
+        print_alert(message=f"Registered as {call_sign}", console=self.console)
 
     def agent(self) -> None:
         agent_response = self.client.agent()
@@ -150,3 +157,9 @@ class Trader:
         print_as_table(
             title=f"Navigation - {call_sign}", data=[navigate], console=self.console
         )
+
+    def miner_trader_loop(self, call_sign: str) -> None:
+        if not self.api_key:
+            raise TraderException("No API key present to proceed")
+        miner_trader = SimpleMinerTrader(api_key=self.api_key, call_sign=call_sign)
+        miner_trader.run_loop()

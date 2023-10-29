@@ -22,4 +22,4 @@ class Cargo(JSONWizard):
 @dataclass
 class SellCargoRequest(JSONWizard):
     symbol: str
-    units: str
+    units: int
