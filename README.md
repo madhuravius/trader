@@ -21,6 +21,13 @@ make install
 make migrations
 
 source ./.venv/bin/activate # or activate.fish
-python ./cli.py
+python ./trader/cli.py
 ```
 
+If you make changes to `trader/dao/*.py`, you should probably run `make migrations` so that there's idempotence for
+existing db caches.
+
+## Credits
+
+Large parts of this repository, namely around automation via GH Actions (used in this repository as Gitea Actions) and
+also distribution used [this repository](https://github.com/aptible/aptstract) as reference.

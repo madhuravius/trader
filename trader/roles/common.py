@@ -3,21 +3,31 @@ from time import sleep
 from typing import List, Optional
 
 from loguru import logger
+from sqlmodel import Session
 
 from trader.client.client import Client
 from trader.client.ship import Ship
+from trader.dao.dao import DAO
+from trader.dao.ship_events import ShipEvent
 from trader.exceptions import TraderException
-from trader.util.algebra import compute_distance
+from trader.util.geometry import compute_distance
 
 DEFAULT_ACTIONS_TIMEOUT = 5
 
 
 class Common:
     client: Client
+    dao: DAO
     ship: Ship
+    # metrics
+    credits_earned: int = 0
+    credits_spent: int = 0
+    time_started: datetime
 
     def __init__(self, api_key: str, call_sign: str):
         self.client = Client(api_key=api_key)
+        self.dao = DAO()
+        self.time_started = datetime.utcnow()
 
         ship = self.client.ship(call_sign=call_sign).data
         if not ship:
@@ -26,6 +36,17 @@ class Common:
             )
 
         self.ship = ship
+
+    def reset_metrics(self):
+        self.credits_earned = 0
+        self.credits_spent = 0
+        self.time_started = datetime.utcnow()
+
+    def add_to_credits_earned(self, credits: int):
+        self.credits_earned += credits
+
+    def add_to_credits_spent(self, credits: int):
+        self.credits_spent += credits
 
     def find_closest_market_location_with_goods(self, goods: List[str] = []):
         locations = {}
@@ -65,7 +86,11 @@ class Common:
         )
         self.navigate_to_waypoint(waypoint_symbol=closest_market_location.symbol)
         self.client.dock(call_sign=self.ship.symbol)
-        self.client.refuel(call_sign=self.ship.symbol)
+        refuel_response = self.client.refuel(call_sign=self.ship.symbol)
+        if refuel_response.data:
+            self.add_to_credits_spent(
+                credits=refuel_response.data.transaction.total_price
+            )
         self.reload_ship()  # keep up to date fuel data
         self.client.orbit(call_sign=self.ship.symbol)
 
@@ -110,7 +135,9 @@ class Common:
                     datetime.fromisoformat(navigation_result.data.nav.route.arrival)
                     - datetime.now(UTC)
                 ).seconds + 1
-                f"Waiting for ship {self.ship.symbol} to arriave at waypoint {waypoint_symbol} for {time_to_wait}"
+                logger.info(
+                    f"Waiting for ship {self.ship.symbol} to arrive at waypoint {waypoint_symbol} for {time_to_wait} second(s)"
+                )
                 sleep(time_to_wait)
         except TraderException as e:
             if "is currently located at the destination" not in e.message:
@@ -121,6 +148,26 @@ class Common:
         logger.info(f"{source_emoji} - {source} - {message}")
 
     def save_to_audit_table(
-        self, source: str, audit_message: str, duration: int, credits: Optional[int] = 0
+        self,
+        event_name: str,
+        duration: int,
+        ship_id: str,
+        system_symbol: Optional[str],
+        waypoint_symbol: Optional[str],
+        credits_earned: Optional[int],
+        credits_spent: Optional[int],
     ):
-        pass
+        with Session(self.dao.engine) as session:
+            session.add(
+                ShipEvent(
+                    event_name=event_name,
+                    duration=duration,
+                    ship_id=ship_id,
+                    system_symbol=system_symbol,
+                    waypoint_symbol=waypoint_symbol,
+                    credits_earned=credits_earned,
+                    credits_spent=credits_spent,
+                    created_at=datetime.utcnow(),
+                )
+            )
+            session.commit()

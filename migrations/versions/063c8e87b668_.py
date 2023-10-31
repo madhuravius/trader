@@ -1,4 +1,4 @@
-"""migration 
+"""Set up cached requests to prevent RPS limits being hit.
 
 Revision ID: 063c8e87b668
 Revises: 

@@ -13,11 +13,22 @@ MAXIMUM_REQUESTS_PER_SECOND = 1.75
 
 
 class Queue(metaclass=Singleton):
+    """
+    This class is a queue object with a priority queue. Its purpose is to
+    organize requests into a priority (1-5), where the higher the number, the
+    higher it is in priority. Items are popped off (LIFO) the queue based on
+    priority.
+
+    Doing things like system scans are much lower priority vs. operations that
+    actively generate revenue (ex: harvesting/trading/navigation).
+    """
+
     requests: Dict[int, List[Tuple[str, ClientRequest]]] = {}
     responses: Dict[str, httpx.Response] = {}
 
     def __init__(self):
         thread = Thread(target=self.run_loop)
+        thread.setDaemon(True)
         thread.start()
 
     def get_request_debug_info(self, request: ClientRequest) -> str:

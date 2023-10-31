@@ -11,7 +11,7 @@ from loguru import logger
 from sqlmodel import Session, delete, select
 
 from trader.dao.dao import DAO
-from trader.dao.models import CachedRequest
+from trader.dao.requests import CachedRequest
 from trader.util.singleton import Singleton
 
 DEFAULT_TIMEOUT_TO_PRUNE_EXPIRATIONS = 30
@@ -19,11 +19,18 @@ DEFAULT_CACHE_TIMEOUT = 60 * 60 * 24 * 3  # 3 days
 
 
 class Cache(metaclass=Singleton):
+    """
+    This class is a utility to cache requests. This is because we are only allowed
+    2 RPS per token. It's better to have long lived caches of things that don't change
+    very often.
+    """
+
     dao: DAO
 
     def __init__(self):
         self.dao = DAO()
         thread = Thread(target=self.run_loop)
+        thread.setDaemon(True)
         thread.start()
 
     def generate_cached_request_id(

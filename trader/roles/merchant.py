@@ -19,8 +19,12 @@ class Merchant(Common):
             logger.info(
                 f"Ship {self.ship.symbol} selling {inventory.units} units of {inventory.symbol}"
             )
-            self.client.sell(
+            sale_response = self.client.sell(
                 call_sign=self.ship.symbol,
                 symbol=inventory.symbol,
                 units=inventory.units,
             )
+            if sale_response.data:
+                self.add_to_credits_earned(
+                    credits=sale_response.data.transaction.total_price
+                )

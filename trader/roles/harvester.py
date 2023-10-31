@@ -3,7 +3,7 @@ from loguru import logger
 from trader.client.waypoint import Waypoint
 from trader.exceptions import TraderException
 from trader.roles.common import Common
-from trader.util.algebra import compute_distance
+from trader.util.geometry import compute_distance
 
 DISALLOWED_WAYPOINT_TYPE = ["ASTEROID_BASE"]
 
