@@ -1,9 +1,10 @@
+from math import dist
+
 from loguru import logger
 
 from trader.client.waypoint import Waypoint
 from trader.exceptions import TraderException
 from trader.roles.common import Common
-from trader.util.geometry import compute_distance
 
 DISALLOWED_WAYPOINT_TYPE = ["ASTEROID_BASE"]
 
@@ -21,6 +22,13 @@ DISALLOWED_LOCATION_TYPES = [
 
 
 class Harvester(Common):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # highest base priority as this is harvesting-related
+        # and directly income generated
+        self.base_priority = 3
+        self.client.set_base_priority(base_priority=self.base_priority)
+
     def find_best_location_to_mine(self) -> Waypoint:
         locations = {}
         raw_locations = self.client.waypoints(self.ship.nav.system_symbol)
@@ -36,13 +44,12 @@ class Harvester(Common):
                 disallowed_location = True
 
             if not disallowed_location:
-                x1, y1 = (
-                    self.ship.nav.route.destination.x,
-                    self.ship.nav.route.destination.y,
-                )
-                x2, y2 = location.x, location.y
-                distance_from_current_location = compute_distance(
-                    x1=x1, x2=x2, y1=y1, y2=y2
+                distance_from_current_location = dist(
+                    [
+                        self.ship.nav.route.destination.x,
+                        self.ship.nav.route.destination.y,
+                    ],
+                    [location.x, location.y],
                 )
                 locations[distance_from_current_location] = location
         return locations[min(locations.keys())]

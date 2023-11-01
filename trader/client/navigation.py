@@ -1,9 +1,11 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Literal, Optional
 
 from dataclass_wizard import JSONWizard, json_key
 
 from trader.client.fuel import Fuel
+
+FlightModes = Literal["DRIFT", "STEALTH", "CRUISE", "BURN"]
 
 
 @dataclass
@@ -45,10 +47,15 @@ class Dock(JSONWizard):
 
 @dataclass
 class NavigationAndFuel(JSONWizard):
-    fuel: Fuel
-    nav: Navigation
+    fuel: Optional[Fuel] = None
+    nav: Optional[Navigation] = None
 
 
 @dataclass
 class NavigationRequestData(JSONWizard):
     waypoint_symbol: str
+
+
+@dataclass
+class NavigationRequestPatch(JSONWizard):
+    flight_mode: FlightModes

@@ -4,8 +4,9 @@ profile = "black"
 [tool.pyright]
 ignore = ["~/.asdf", "./migrations"]
 include = ["trader"]
-reportMissingImports = false
+reportMissingImports = true
 reportMissingTypeStubs = false
+reportUnusedImport = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

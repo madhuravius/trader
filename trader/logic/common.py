@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List
 
@@ -7,7 +8,7 @@ from trader.client.ship import Ship
 from trader.roles.common import Common as CommonRole
 
 
-class Common:
+class Common(ABC):
     ship: Ship
     roles: List[CommonRole]
     repeat: bool
@@ -57,3 +58,7 @@ class Common:
             credits_spent=total_credits_spent,
             duration=total_time_spent,
         )
+
+    @abstractmethod
+    def run_loop():
+        pass

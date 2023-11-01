@@ -3,15 +3,10 @@ import os
 import rich_click as click
 from loguru import logger
 
+from trader.client.navigation import FlightModes
 from trader.exceptions import TraderException
 from trader.main import Trader
 from trader.print.print import print_alert
-
-click.rich_click.USE_RICH_MARKUP = True
-click.rich_click.SHOW_ARGUMENTS = True
-click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
-click.rich_click.SHOW_METAVARS_COLUMN = False
-click.rich_click.APPEND_METAVARS_HELP = True
 
 if "DEBUG" not in os.environ:
     logger.remove()
@@ -216,6 +211,16 @@ def cargo(call_sign: str):
 
 @trader_command()
 @click.argument("call_sign")
+@click.argument("flight_mode")
+def set_flight_mode(call_sign: str, flight_mode: FlightModes):
+    """
+    Sets flight mode for a given ship based on a provided call sign. Ex: [yellow]cli.py set-flight-mode CALL_SIGN FLIGHT_MODE[/yellow]
+    """
+    trader.set_flight_mode(call_sign=call_sign, flight_mode=flight_mode)
+
+
+@trader_command()
+@click.argument("call_sign")
 @click.argument("symbol")
 @click.argument("units")
 def sell(call_sign: str, symbol: str, units: int):
@@ -240,6 +245,28 @@ def miner_trader_loop(call_sign: str, repeat: bool):
 
 
 @trader_command()
+@click.argument("call_sign")
+@click.option(
+    "--repeat",
+    default=False,
+    help="Apply this flag if you want to run this logic loop repeatedly",
+)
+def explorer_loop(call_sign: str, repeat: bool):
+    """
+    Begins a naive exploration loop for a given call sign. Ex: [yellow]cli.py explorer-loop --repeat true CALL_SIGN[/yellow]
+    """
+    trader.explorer_loop(call_sign=call_sign, repeat=repeat)
+
+
+@trader_command()
+def fleet_loop():
+    """
+    Begins a naive set of loops for all ships in the fleet. Ex: [yellow]cli.py fleet-loop [/yellow]
+    """
+    trader.fleet_loop()
+
+
+@trader_command()
 def fleet_summary():
     """
     Print out a summary table of the fleet and its ongoing actions. Ex: [yellow]cli.py fleet-summary[/yellow]
@@ -256,6 +283,14 @@ def ship_summary(call_sign: str):
     trader.fleet_summary(call_sign=call_sign, limit=20)
 
 
+@trader_command()
+def agent_history():
+    """
+    Print out a summary table of an agent and its recent history. Ex: [yellow]cli.py agent-history[/yellow]
+    """
+    trader.agent_history()
+
+
 # basic cli commands
 cli.add_command(agent)
 cli.add_command(agents)
@@ -270,6 +305,7 @@ cli.add_command(navigate)
 cli.add_command(orbit)
 cli.add_command(register)
 cli.add_command(sell)
+cli.add_command(set_flight_mode)
 cli.add_command(ships)
 cli.add_command(ship)
 cli.add_command(system)
@@ -277,11 +313,32 @@ cli.add_command(systems)
 cli.add_command(waypoints)
 
 # commands for testing more complex behaviors
+cli.add_command(explorer_loop)
 cli.add_command(miner_trader_loop)
+cli.add_command(fleet_loop)
 
-# commands for actions taken against the entire fleet
+# commands for actions taken against the entire fleet or summary actions
 cli.add_command(fleet_summary)
 cli.add_command(ship_summary)
+cli.add_command(agent_history)
+
+click.rich_click.USE_RICH_MARKUP = True
+click.rich_click.SHOW_ARGUMENTS = True
+click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
+click.rich_click.SHOW_METAVARS_COLUMN = False
+click.rich_click.APPEND_METAVARS_HELP = True
+click.rich_click.COMMAND_GROUPS = {
+    "cli.py": [
+        {
+            "name": "Logical Loops and Fleet Commands",
+            "commands": ["explorer-loop", "miner-trader-loop", "fleet-loop"],
+        },
+        {
+            "name": "Summaries and Reports",
+            "commands": ["fleet-summary", "ship-summary", "agent-history"],
+        },
+    ]
+}
 
 if __name__ == "__main__":
     cli.main(standalone_mode=True)

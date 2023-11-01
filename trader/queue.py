@@ -56,7 +56,7 @@ class Queue(metaclass=Singleton):
                 del self.requests[priority]
 
             logger.debug(
-                f"Dequeuing - {self.get_request_debug_info(request_to_handle)}"
+                f"Dequeuing (priority - {priority}) - {self.get_request_debug_info(request_to_handle)}"
             )
             response = self.execute(request_to_handle)
             self.responses[request_id] = response
@@ -73,13 +73,30 @@ class Queue(metaclass=Singleton):
         if self.requests.get(priority) is None:
             self.requests[priority] = []
         request_id = str(uuid4())
-        logger.debug(f"Enqueued - {self.get_request_debug_info(request)}")
+        logger.debug(
+            f"Enqueued (priority - {priority}) - {self.get_request_debug_info(request)}"
+        )
         self.requests[priority].append((request_id, request))
         return request_id
 
     def execute(self, request: ClientRequest) -> httpx.Response:
         logger.debug(f"Executing - {self.get_request_debug_info(request)}")
-        return request.function(**request.arguments)
+        attempt = 0
+        while True:
+            try:
+                return request.function(**request.arguments)
+            except (httpx.ReadTimeout, httpx.ConnectError) as e:
+                if attempt < 4:
+                    attempt += 1
+                    time_to_wait = 5 * (2**attempt)
+                    sleep(time_to_wait)
+                    logger.warning(
+                        f"Error when conducting request and attempting retry "
+                        f"{repr(e)}. Sleeping for {time_to_wait} seconds "
+                        f"before retrying. Attempt #{attempt}."
+                    )
+                    continue
+                raise
 
     def wait_for_response(self, request_id: str) -> httpx.Response:
         while True:

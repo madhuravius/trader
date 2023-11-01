@@ -17,6 +17,8 @@ processes.
 
 ```bash
 make install
+# If only consuming and not planning on doing development, you can also run make ci
+make ci
 # OPTIONAL - recommended you run migrations first
 make migrations
 
@@ -26,6 +28,12 @@ python ./trader/cli.py
 
 If you make changes to `trader/dao/*.py`, you should probably run `make migrations` so that there's idempotence for
 existing db caches.
+
+Environment variables that might make life easier debugging:
+
+```sh
+LOGURU_LEVEL=debug DEBUG=true python ./trader/cli.py $COMMAND
+```
 
 ## Credits
 

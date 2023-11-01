@@ -94,7 +94,9 @@ class Cache(metaclass=Singleton):
                 url=url,
                 data=json.dumps(data, sort_keys=True),
                 params=json.dumps(data, sort_keys=True),
-                expiration=(datetime.now() + timedelta(cache_timeout)).timestamp(),
+                expiration=(
+                    datetime.now() + timedelta(seconds=cache_timeout)
+                ).timestamp(),
                 response=pickle.dumps(response),
             )
             with Session(self.dao.engine) as session:

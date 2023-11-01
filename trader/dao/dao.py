@@ -4,12 +4,27 @@ from sqlalchemy.engine import Engine
 from sqlmodel import SQLModel, create_engine
 
 from trader.dao.agent_history import AgentHistory
+from trader.dao.markets import (
+    MarketExchange,
+    MarketExport,
+    MarketImport,
+    MarketTransaction,
+)
 from trader.dao.requests import CachedRequest
 from trader.dao.ship_events import ShipEvent
 from trader.dao.ships import Ship
 from trader.util.singleton import Singleton
 
-Tables = [AgentHistory, CachedRequest, Ship, ShipEvent]
+Tables = [
+    AgentHistory,
+    CachedRequest,
+    MarketExchange,
+    MarketExport,
+    MarketImport,
+    MarketTransaction,
+    Ship,
+    ShipEvent,
+]
 
 
 class DAO(metaclass=Singleton):

@@ -72,6 +72,11 @@ class SystemPayload(CommonPayloadFields):
 
 
 @dataclass
+class WaypointPayload(CommonPayloadFields):
+    data: Optional[Waypoint] = None
+
+
+@dataclass
 class WaypointsPayload(CommonPayloadFields):
     data: Optional[List[Waypoint]] = None
 
@@ -153,5 +158,6 @@ PayloadTypes = (
     | ShipPayload
     | SystemsPayload
     | SystemPayload
+    | WaypointPayload
     | WaypointsPayload
 )

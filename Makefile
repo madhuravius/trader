@@ -5,6 +5,10 @@ PYTHON_VENV = source .venv/bin/activate &&
 	python -m venv .venv
 .PHONY: .venv
 
+ci: .venv
+	$(PYTHON_VENV) pip install -r requirements.txt
+.PHONY: ci
+
 install: .venv
 	$(PYTHON_VENV) pip install \
 		-e .[test]
@@ -61,3 +65,10 @@ clean:
 	rm -Rf dist || true
 	rm -Rf .venv || true
 .PHONY: clean
+
+gen-lockfile: .venv
+	$(PYTHON_VENV) pip-compile \
+		--resolver=backtracking \
+		--generate-hashes \
+		-o requirements.txt -v
+.PHONY: gen-lockfile

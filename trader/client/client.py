@@ -1,11 +1,12 @@
-from typing import Any, Dict, List, Optional, Type, cast
+import os
+from typing import Any, Dict, List, Literal, Optional, Type, cast
 
 import httpx
 from loguru import logger
 
 from trader.cache import Cache
 from trader.client.cargo import SellCargoRequest
-from trader.client.navigation import NavigationRequestData
+from trader.client.navigation import NavigationRequestData, NavigationRequestPatch
 from trader.client.payload import (
     AgentPayload,
     AgentsPayload,
@@ -26,6 +27,7 @@ from trader.client.payload import (
     ShipsPayload,
     SystemPayload,
     SystemsPayload,
+    WaypointPayload,
     WaypointsPayload,
 )
 from trader.client.registration import RegistrationRequestData
@@ -36,8 +38,17 @@ from trader.util.singleton import Singleton
 
 BASE_URL = "https://api.spacetraders.io/v2"
 
+LOW_ADDED_PRIORITY = 1  # research related, rarely blocking revenue generation
+MEDIUM_ADDED_PRIORITY = 2  # navigation or common related (possibly blocking revenue)
+HIGH_ADDED_PRIORITY = 3  # revenue generating activities guaranteed blocked
 
-class Client(metaclass=Singleton):
+
+class CoreClient(metaclass=Singleton):
+    """
+    Intensive DAO and Cache heavy component of client. This portion is a singleton
+    to avoid reinstantiation and is consistently referenced.
+    """
+
     api_key: Optional[str]
     bearer: str
     cache: Cache
@@ -52,6 +63,25 @@ class Client(metaclass=Singleton):
     def ensure_api_key(self):
         if not self.api_key:
             raise TraderException("No API key found in path, error!")
+
+
+class Client:
+    """
+    Lighter weight client wrapper that handles client calls systematically. The
+    core client is a singleton as init'ing it is fairly heavy per call.
+    """
+
+    base_priority: int
+    core: CoreClient
+    debug: bool
+
+    def __init__(self, api_key: Optional[str], base_priority: int = 0) -> None:
+        self.core_client = CoreClient(api_key=api_key)
+        self.base_priority = base_priority
+        self.debug = "DEBUG" in os.environ
+
+    def set_base_priority(self, base_priority: int):
+        self.base_priority = base_priority
 
     def ensure_success(self, response: CommonPayloadFields):
         if response.error and response.error.code and response.error.code >= 400:
@@ -85,12 +115,13 @@ class Client(metaclass=Singleton):
     def execute_single_request(
         self,
         url: str,
-        method: str,
+        method: Literal["GET", "POST", "PATCH"],
         cache_timeout: Optional[float] = None,
         check_cache: bool = True,
         data: Optional[Dict[str, Any]] = {},
         is_paged: bool = False,
         page: int = 1,
+        added_priority: int = 0,
         limit: int = 20,
     ) -> httpx.Response:
         logger.debug(f"📤     {method}: {url}")
@@ -100,25 +131,31 @@ class Client(metaclass=Singleton):
             params = {"limit": limit, "page": page}
 
         if check_cache:
-            cached_response = self.cache.get_kv_cache(
+            cached_response = self.core_client.cache.get_kv_cache(
                 method=method, url=url, data=data, params=params
             )
             if cached_response:
+                if self.debug:
+                    logger.trace(cached_response.content)
                 return cached_response
 
         arguments: Dict[str, Any] = {"url": url, "params": params}
-        if self.api_key:
-            arguments["headers"] = {"Authorization": self.bearer}
+        if self.core_client.api_key:
+            arguments["headers"] = {"Authorization": self.core_client.bearer}
         if data:
             arguments["json"] = data
 
         if method == "POST":
             request = ClientRequest(function=httpx.post, arguments=arguments)
+        elif method == "PATCH":
+            request = ClientRequest(function=httpx.patch, arguments=arguments)
         else:
             request = ClientRequest(function=httpx.get, arguments=arguments)
 
-        request_id = self.queue.enqueue(request=request, priority=1)
-        response = self.queue.wait_for_response(request_id=request_id)
+        request_id = self.core_client.queue.enqueue(
+            request=request, priority=self.base_priority + added_priority
+        )
+        response = self.core_client.queue.wait_for_response(request_id=request_id)
 
         if check_cache:
             cache_arguments = {
@@ -130,16 +167,19 @@ class Client(metaclass=Singleton):
             }
             if cache_timeout:
                 cache_arguments["cache_timeout"] = cache_timeout
-            self.cache.set_kv_cache(**cache_arguments)
+            self.core_client.cache.set_kv_cache(**cache_arguments)
 
         logger.debug(f"📨 {response.status_code} {method}: {url}")
+
+        if self.debug:
+            logger.trace(response.content)
 
         return response
 
     def conduct_request(
         self,
         url: str,
-        method: str,
+        method: Literal["GET", "POST", "PATCH"],
         data_type: Type[PayloadTypes],
         cache_timeout: Optional[float] = None,
         check_cache: bool = True,
@@ -147,10 +187,11 @@ class Client(metaclass=Singleton):
         is_paged: bool = False,
         page: int = 1,
         requires_auth: bool = True,
+        added_priority: int = 0,
         limit: int = 20,
     ) -> PayloadTypes:
         if requires_auth:
-            self.ensure_api_key()
+            self.core_client.ensure_api_key()
 
         response = self.execute_single_request(
             url=url,
@@ -160,6 +201,7 @@ class Client(metaclass=Singleton):
             data=data,
             is_paged=is_paged,
             page=page,
+            added_priority=added_priority,
             limit=limit,
         )
 
@@ -184,6 +226,7 @@ class Client(metaclass=Singleton):
                         data=data,
                         is_paged=is_paged,
                         page=page,
+                        added_priority=added_priority,
                         limit=limit,
                     ).content,
                     data_type=data_type,
@@ -247,6 +290,7 @@ class Client(metaclass=Singleton):
             check_cache=False,
             is_paged=True,
             data_type=ShipPayload,
+            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(ShipPayload, result)
 
@@ -265,12 +309,22 @@ class Client(metaclass=Singleton):
         )
         return cast(SystemsPayload, result)
 
+    def waypoint(self, system_symbol: str, waypoint_symbol: str) -> WaypointPayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}",
+            method="GET",
+            data_type=WaypointPayload,
+            added_priority=MEDIUM_ADDED_PRIORITY,
+        )
+        return cast(WaypointPayload, result)
+
     def waypoints(self, system_symbol: str) -> WaypointsPayload:
         result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints",
             method="GET",
             is_paged=True,
             data_type=WaypointsPayload,
+            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(WaypointsPayload, result)
 
@@ -281,6 +335,7 @@ class Client(metaclass=Singleton):
             data=NavigationRequestData(waypoint_symbol=waypoint_symbol).to_dict(),
             check_cache=False,
             data_type=NavigationPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(NavigationPayload, result)
 
@@ -290,6 +345,7 @@ class Client(metaclass=Singleton):
             method="POST",
             check_cache=False,
             data_type=OrbitPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(OrbitPayload, result)
 
@@ -299,6 +355,7 @@ class Client(metaclass=Singleton):
             method="POST",
             check_cache=False,
             data_type=DockPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(DockPayload, result)
 
@@ -311,12 +368,26 @@ class Client(metaclass=Singleton):
         )
         return cast(CargoPayload, result)
 
+    def set_flight_mode(
+        self, call_sign: str, data: NavigationRequestPatch
+    ) -> CargoPayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/ships/{call_sign}/nav",
+            data=data.to_dict(),
+            method="PATCH",
+            check_cache=False,
+            data_type=NavigationPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
+        )
+        return cast(CargoPayload, result)
+
     def extract(self, call_sign: str) -> ExtractPayload:
         result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/extract",
             method="POST",
             check_cache=False,
             data_type=ExtractPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(ExtractPayload, result)
 
@@ -326,6 +397,7 @@ class Client(metaclass=Singleton):
             method="POST",
             check_cache=False,
             data_type=RefuelPayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(RefuelPayload, result)
 
@@ -335,6 +407,7 @@ class Client(metaclass=Singleton):
             method="GET",
             check_cache=False,
             data_type=CooldownPayload,
+            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(CooldownPayload, result)
 
@@ -343,8 +416,9 @@ class Client(metaclass=Singleton):
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/market",
             method="GET",
             check_cache=True,
-            cache_timeout=300,  # drop cache every 300 seconds or so
+            cache_timeout=120,  # drop cache every 120 seconds or so
             data_type=MarketPayload,
+            added_priority=LOW_ADDED_PRIORITY,
         )
         return cast(MarketPayload, result)
 
@@ -355,5 +429,6 @@ class Client(metaclass=Singleton):
             data=SellCargoRequest(symbol=symbol, units=units).to_dict(),
             check_cache=False,
             data_type=SalePayload,
+            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(SalePayload, result)

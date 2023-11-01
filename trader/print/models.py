@@ -16,3 +16,12 @@ class FleetSummaryRow(JSONWizard):
     logic: Optional[str] = None
     activity: Optional[str] = None
     record_date: Optional[datetime] = None
+
+
+@dataclass
+class AgentHistoryRow(JSONWizard):
+    agent_symbol: str
+    ship_count: int
+    in_system_count: int
+    credits: int
+    record_date: datetime
