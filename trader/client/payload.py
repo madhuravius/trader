@@ -13,6 +13,9 @@ from trader.client.fuel import Refuel
 from trader.client.market import Market, Sale
 from trader.client.navigation import Dock, NavigationAndFuel, Orbit
 from trader.client.ship import Ship
+from trader.client.ship_purchase import ShipPurchase
+from trader.client.shipyard import Shipyard
+from trader.client.status import LeaderBoard, ServerReset
 from trader.client.system import System
 from trader.client.waypoint import Waypoint
 
@@ -95,6 +98,12 @@ class RegistrationResponsePayload(CommonPayloadFields):
     data: Optional[RegistrationResponse] = None
 
 
+@dataclass(kw_only=True)
+class StatusPayload(CommonPayloadFields):
+    leaderboards: LeaderBoard
+    server_resets: ServerReset
+
+
 @dataclass
 class OrbitPayload(CommonPayloadFields):
     data: Optional[Orbit] = None
@@ -140,6 +149,16 @@ class SalePayload(CommonPayloadFields):
     data: Optional[Sale] = None
 
 
+@dataclass
+class ShipyardPayload(CommonPayloadFields):
+    data: Optional[Shipyard] = None
+
+
+@dataclass
+class ShipPurchasePayload(CommonPayloadFields):
+    data: Optional[ShipPurchase] = None
+
+
 PayloadTypes = (
     RegistrationResponsePayload
     | AgentPayload
@@ -156,6 +175,8 @@ PayloadTypes = (
     | SalePayload
     | ShipsPayload
     | ShipPayload
+    | ShipPurchasePayload
+    | ShipyardPayload
     | SystemsPayload
     | SystemPayload
     | WaypointPayload

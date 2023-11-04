@@ -1,11 +1,11 @@
 import hashlib
 import json
-import pickle
 from datetime import datetime, timedelta
 from threading import Thread
 from time import sleep
 from typing import Any, Dict, Optional
 
+import dill as pickle
 import httpx
 from loguru import logger
 from sqlmodel import Session, delete, select

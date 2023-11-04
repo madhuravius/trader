@@ -1,6 +1,8 @@
 # Trader
 
-Experiment to start to play with: [SpaceTraders API](https://docs.spacetraders.io/quickstart/new-game)
+**This is an experiment and is highly unstable.**
+
+**Experiment** I've been starting to play with: [SpaceTraders API](https://docs.spacetraders.io/quickstart/new-game)
 
 API that's being used for consumption: 
 [link](https://stoplight.io/api/v1/projects/spacetraders/spacetraders/nodes/reference/SpaceTraders.json?fromExportButton=true&snapshotType=http_service&deref=optimizedBundle)
@@ -16,9 +18,7 @@ Intended actual use case is for using the CLI for information or kicking off job
 processes. 
 
 ```bash
-make install
-# If only consuming and not planning on doing development, you can also run make ci
-make ci
+make install-lock
 # OPTIONAL - recommended you run migrations first
 make migrations
 
@@ -32,7 +32,23 @@ existing db caches.
 Environment variables that might make life easier debugging:
 
 ```sh
-LOGURU_LEVEL=debug DEBUG=true python ./trader/cli.py $COMMAND
+# SQL_DEBUG will print sql logs, so omit if not desired
+# DEBUG will print logs to std out instead of out.log
+SQL_DEBUG=1 DEBUG=1 python ./trader/cli.py $COMMAND
+```
+
+This can be run with docker as well (note that you'll want to reset the database each time you have an updated image unless
+you want to run the migrations locally. all data is just cached local and can be lost each run):
+
+```sh
+# copy db.db to local disk
+docker cp $(docker create --name tc ghcr.io/madhuravius/trader):/app/db.db ./db.db
+
+# run with local volumes for these persistent files
+docker run \
+    -v $PWD/db.db:/app/db.db \
+    -v $PWD/.token:/app/.token \
+    ghcr.io/madhuravius/trader
 ```
 
 ## Credits

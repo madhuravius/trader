@@ -5,14 +5,17 @@ PYTHON_VENV = source .venv/bin/activate &&
 	python -m venv .venv
 .PHONY: .venv
 
-ci: .venv
-	$(PYTHON_VENV) pip install -r requirements.txt
-.PHONY: ci
-
 install: .venv
-	$(PYTHON_VENV) pip install \
-		-e .[test]
+	$(PYTHON_VENV) pip install -e .[build,dev]
 .PHONY: install
+
+install-lock: .venv
+	$(PYTHON_VENV) pip install -r requirements-dev.txt
+.PHONY: install-lock
+
+install-build-lock: .venv
+	$(PYTHON_VENV) pip install -r requirements-build.txt
+.PHONY: install-build-lock
 
 black:
 	$(PYTHON_VENV) black ./trader
@@ -40,6 +43,10 @@ pyright_check:
 lint: black_check isort_check pyright_check
 .PHONY: lint
 
+test:
+	$(PYTHON_VENV) pytest trader/tests -v --cov=./trader --cov-report term-missing
+.PHONY: test
+
 migrations:
 	$(PYTHON_VENV) python -m alembic revision --autogenerate || true
 	$(PYTHON_VENV) python -m alembic upgrade head
@@ -66,9 +73,19 @@ clean:
 	rm -Rf .venv || true
 .PHONY: clean
 
-gen-lockfile: .venv
+gen-lockfiles: .venv
 	$(PYTHON_VENV) pip-compile \
 		--resolver=backtracking \
 		--generate-hashes \
-		-o requirements.txt -v
-.PHONY: gen-lockfile
+		--extra=build \
+		-o requirements-build.txt -v
+	$(PYTHON_VENV) pip-compile \
+		--resolver=backtracking \
+		--generate-hashes \
+		--extra=dev \
+		-o requirements-dev.txt -v
+.PHONY: gen-lockfiles
+
+build:
+	docker build -f Dockerfile -t trader . 
+.PHONY: build

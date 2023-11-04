@@ -1,19 +1,24 @@
 from datetime import UTC, datetime
 from math import dist
 from time import sleep
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
 from loguru import logger
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from trader.client.client import Client
-from trader.client.navigation import NavigationRequestPatch
+from trader.client.market import Exchange
+from trader.client.navigation import FlightModes, NavigationRequestPatch
 from trader.client.ship import Ship
+from trader.client.waypoint import Waypoint
 from trader.dao.dao import DAO
-from trader.dao.markets import save_client_market
+from trader.dao.markets import MarketExchange, save_client_market
 from trader.dao.ship_events import ShipEvent
 from trader.dao.ships import save_client_ships
-from trader.exceptions import TraderException
+from trader.dao.shipyards import save_client_shipyard
+from trader.dao.waypoints import Waypoint as WaypointDAO
+from trader.dao.waypoints import get_waypoints_by_system_symbol, save_client_waypoints
+from trader.exceptions import TraderClientException, TraderException
 
 DEFAULT_ACTIONS_TIMEOUT = 5
 
@@ -29,147 +34,35 @@ class Common:
     # other
     base_priority: int = 0
 
-    def __init__(self, api_key: str, call_sign: str):
+    def __init__(self, api_key: str, base_priority: int, call_sign: str):
+        self.base_priority = base_priority
         self.client = Client(api_key=api_key, base_priority=self.base_priority)
         self.dao = DAO()
         self.time_started = datetime.utcnow()
 
         ship = self.client.ship(call_sign=call_sign).data
         if not ship:
-            raise TraderException(
+            raise TraderClientException(
                 "Unable to instantiate common client as ship payload was empty!"
             )
 
         self.ship = ship
 
-    def reset_metrics(self):
-        self.credits_earned = 0
-        self.credits_spent = 0
-        self.time_started = datetime.utcnow()
+    def __navigate_to_waypoint(self, waypoint_symbol: str, system_symbol: str):
+        """
+        To be used with extreme care to avoid infinite loops as nearly everything requires
+        navigation. This is mean to be used specifically with refueling and refueling
+        encapsulated functions. Avoid using this without refueling!
 
-    def add_to_credits_earned(self, credits: int):
-        self.credits_earned += credits
-
-    def add_to_credits_spent(self, credits: int):
-        self.credits_spent += credits
-
-    def find_closest_market_location_with_goods(self, goods: List[str] = []):
-        locations = {}
-        raw_locations = self.client.waypoints(self.ship.nav.system_symbol)
-        if not raw_locations.data:
-            raise TraderException("No waypoints found to find locations to sell!")
-        for location in raw_locations.data:
-            if "MARKETPLACE" not in [trait.symbol for trait in location.traits]:
-                continue
-            # additionally query marketplace exchanges to see if goods are sold there
-            market_data = self.client.market(
-                system_symbol=location.system_symbol, waypoint_symbol=location.symbol
-            )
-            if market_data.data:
-                if not set(goods).issubset(
-                    [entry.symbol for entry in market_data.data.exchange]
-                ):
-                    continue
-            distance_from_current_location = dist(
-                [
-                    self.ship.nav.route.destination.x,
-                    self.ship.nav.route.destination.y,
-                ],
-                [location.x, location.y],
-            )
-            locations[distance_from_current_location] = location
-        return locations[min(locations.keys())]
-
-    def refuel_ship(self):
-        logger.info(f"Ship {self.ship.symbol} starting to navigate to refuel")
+        In almost all cases you will want to use refuel_and_navigate_to_waypoint
+        """
         try:
-            self.client.orbit(
-                call_sign=self.ship.symbol
-            )  # ensure that the ship is always in a position to continue (if previously orphaned by other activity)
-            closest_market_location = self.find_closest_market_location_with_goods(
-                goods=["FUEL"]
+            self.wait()
+            self.set_flight_mode_for_fuel_and_frame(
+                waypoint_symbol=waypoint_symbol, system_symbol=system_symbol
             )
-            self.navigate_to_waypoint(waypoint_symbol=closest_market_location.symbol)
-            self.client.dock(call_sign=self.ship.symbol)
-            self.refresh_market_data(
-                system_symbol=closest_market_location.system_symbol,
-                waypoint_symbol=closest_market_location.symbol,
-            )
-            refuel_response = self.client.refuel(call_sign=self.ship.symbol)
-            if refuel_response.data:
-                self.add_to_credits_spent(
-                    credits=refuel_response.data.transaction.total_price
-                )
-            self.reload_ship()  # keep up to date fuel data
             self.client.orbit(call_sign=self.ship.symbol)
-        except TraderException as e:
-            if "Ship is currently in-transit" in e.message:
-                self.wait_for_ship_to_arrive_at_destination()
-                self.refuel_ship()
 
-    def reload_ship(self):
-        ship = self.client.ship(call_sign=self.ship.symbol).data
-        if ship:
-            save_client_ships(engine=self.dao.engine, ships=[ship])
-            self.ship = ship
-
-    def wait(self):
-        attempts = 0
-        while True:
-            if attempts > 3:
-                break
-            try:
-                cooldown = self.client.cooldown(self.ship.symbol)
-                if cooldown.data and cooldown.data.remaining_seconds != 0:
-                    logger.info(
-                        f"Ship {self.ship.symbol} waiting for cooldown for {cooldown.data.remaining_seconds} seconds"
-                    )
-                    sleep(cooldown.data.remaining_seconds)
-                else:
-                    sleep(DEFAULT_ACTIONS_TIMEOUT)
-                attempts += 1
-            except TraderException as e:
-                if "Empty response" in e.message:
-                    break
-        self.reload_ship()
-
-    def wait_for_ship_to_arrive_at_destination(self) -> None:
-        self.reload_ship()
-        time_to_wait = (
-            datetime.fromisoformat(self.ship.nav.route.arrival) - datetime.now(UTC)
-        ).seconds + 1
-        logger.warning(
-            f"Waiting for ship {self.ship.symbol} to arrive at already"
-            f"bound destination {self.ship.nav.route.destination.symbol} for {time_to_wait} second(s)"
-        )
-        sleep(time_to_wait)
-
-    def refresh_market_data(self, system_symbol: str, waypoint_symbol: str) -> None:
-        market = self.client.market(
-            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
-        ).data
-        if market:
-            save_client_market(
-                engine=self.dao.engine,
-                market=market,
-                system_symbol=system_symbol,
-            )
-
-    def navigate_to_waypoint(self, waypoint_symbol: str):
-        logger.info(
-            f"Ship {self.ship.symbol} navigating to waypoint {waypoint_symbol} and waiting"
-        )
-        try:
-            if self.ship.frame == "Probe" and self.ship.nav.flight_mode != "BURN":
-                logger.info(
-                    f"Setting probe {self.ship.symbol} flight mode to burn as it is a probe (no fuel cost)"
-                )
-                self.client.set_flight_mode(
-                    call_sign=self.ship.symbol,
-                    data=NavigationRequestPatch(flight_mode="BURN"),
-                )
-
-            self.client.orbit(call_sign=self.ship.symbol)
             navigation_result = self.client.navigate(
                 self.ship.symbol, waypoint_symbol=waypoint_symbol
             )
@@ -193,6 +86,241 @@ class Common:
             elif "is currently located at the destination" not in e.message:
                 # reraise if not currently at desired location, as this is possible
                 raise
+
+    def reset_metrics(self):
+        self.credits_earned = 0
+        self.credits_spent = 0
+        self.time_started = datetime.utcnow()
+
+    def add_to_credits_earned(self, credits: int):
+        self.credits_earned += credits
+
+    def add_to_credits_spent(self, credits: int):
+        self.credits_spent += credits
+
+    def fetch_waypoints_possible_for_ship(self) -> List[Waypoint] | List[WaypointDAO]:
+        waypoints = get_waypoints_by_system_symbol(
+            engine=self.dao.engine, system_symbol=self.ship.nav.system_symbol
+        )
+        if not waypoints:
+            raw_locations_from_client = self.client.waypoints(
+                self.ship.nav.system_symbol
+            ).data
+            if not raw_locations_from_client:
+                raise TraderException("No waypoints found to find locations to mine!")
+            else:
+                save_client_waypoints(
+                    engine=self.dao.engine, waypoints=raw_locations_from_client
+                )
+                waypoints = raw_locations_from_client
+        return waypoints
+
+    def find_closest_market_location_with_goods(self, goods: List[str] = []):
+        locations = {}
+        # check if waypoints exist in db for system, if so we can just use that as there's no need to regrok
+        waypoints = self.fetch_waypoints_possible_for_ship()
+        for waypoint in waypoints:
+            if "MARKETPLACE" not in [trait.symbol for trait in waypoint.traits]:
+                continue
+            # check if exchange aleady in db / cache first, otherwise go to retrieve it from API and hydrate
+            market_exchanges: List[MarketExchange] | List[Exchange] = []
+            with Session(self.dao.engine) as session:
+                market_exchanges = session.exec(
+                    select(MarketExchange).where(
+                        MarketExchange.waypoint_symbol == waypoint.symbol
+                    )
+                ).all()
+            if not market_exchanges:
+                market_data = self.client.market(
+                    system_symbol=waypoint.system_symbol,
+                    waypoint_symbol=waypoint.symbol,
+                )
+                if market_data.data:
+                    save_client_market(
+                        engine=self.dao.engine,
+                        market=market_data.data,
+                        system_symbol=waypoint.system_symbol,
+                    )
+                    market_exchanges = market_data.data.exchange
+
+            if not set(goods).issubset([entry.symbol for entry in market_exchanges]):
+                continue
+            distance_from_current_location = dist(
+                [
+                    self.ship.nav.route.destination.x,
+                    self.ship.nav.route.destination.y,
+                ],
+                [waypoint.x, waypoint.y],
+            )
+            locations[distance_from_current_location] = waypoint
+        return locations[min(locations.keys())]
+
+    def set_flight_mode_for_fuel_and_frame(
+        self, waypoint_symbol: str, system_symbol: str
+    ):
+        """
+        fuel is cmputed based on the following matrix:
+
+        CRUISE  = d
+        DRIFT   = 1
+        BURN    = 2d
+        STEALTH = d
+        """
+        fuel_cost_multiplier: Dict[FlightModes, Callable[[int], int]] = {
+            "CRUISE": lambda distance: distance,
+            "DRIFT": lambda _: 1,
+            "BURN": lambda distance: 2 * distance,
+            "STEALTH": lambda distance: distance,
+        }
+
+        if self.ship.frame.name == "Probe":
+            logger.info(
+                f"Setting probe {self.ship.symbol} flight mode to burn as it is a probe (no fuel cost)"
+            )
+            return self.client.set_flight_mode(
+                call_sign=self.ship.symbol,
+                data=NavigationRequestPatch(flight_mode="BURN"),
+            )
+
+        # otherwise check the cost and determine which to use
+        waypoint = self.client.waypoint(
+            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
+        ).data
+        if waypoint:
+            distance = dist(
+                [waypoint.x, waypoint.y],
+                [self.ship.nav.route.destination.x, self.ship.nav.route.destination.y],
+            )
+            fuel_cost = fuel_cost_multiplier[self.ship.nav.flight_mode](int(distance))
+            flight_mode_to_use = "CRUISE"
+            if fuel_cost > 0.8 * self.ship.fuel.current:  # be a little conservative about saved fuel
+                # if too expensive, rely on drift
+                flight_mode_to_use = "DRIFT"
+
+            logger.info(
+                f"Setting ship {self.ship.symbol} flight mode to {flight_mode_to_use} because of fuel cost ({fuel_cost}) "
+                f"vs. current fuel ({self.ship.fuel.current})"
+            )
+            self.client.set_flight_mode(
+                call_sign=self.ship.symbol,
+                data=NavigationRequestPatch(flight_mode=flight_mode_to_use),
+            )
+
+    def refuel_ship(self):
+        logger.info(f"Ship {self.ship.symbol} starting to navigate to refuel")
+        try:
+            self.client.orbit(
+                call_sign=self.ship.symbol
+            )  # ensure that the ship is always in a position to continue (if previously orphaned by other activity)
+            closest_market_location = self.find_closest_market_location_with_goods(
+                goods=["FUEL"]
+            )
+            self.__navigate_to_waypoint(
+                waypoint_symbol=closest_market_location.symbol,
+                system_symbol=closest_market_location.system_symbol,
+            )
+            self.client.dock(call_sign=self.ship.symbol)
+            self.refresh_market_data(
+                system_symbol=closest_market_location.system_symbol,
+                waypoint_symbol=closest_market_location.symbol,
+            )
+            refuel_response = self.client.refuel(call_sign=self.ship.symbol)
+            if refuel_response.data:
+                self.add_to_credits_spent(
+                    credits=refuel_response.data.transaction.total_price
+                )
+            self.reload_ship()  # keep up to date fuel data
+            self.client.orbit(call_sign=self.ship.symbol)
+        except TraderException as e:
+            if "Ship is currently in-transit" in e.message:
+                self.wait_for_ship_to_arrive_at_destination()
+                return self.refuel_ship()
+            raise
+
+    def reload_ship(self):
+        ship = self.client.ship(call_sign=self.ship.symbol).data
+        if ship:
+            save_client_ships(engine=self.dao.engine, ships=[ship])
+            self.ship = ship
+
+    def wait(self):
+        attempts = 0
+        while True:
+            if attempts > 3:
+                break
+            try:
+                # check if in transit
+                self.reload_ship()
+                if self.ship.nav.status == "IN_TRANSIT":
+                    self.wait_for_ship_to_arrive_at_destination()
+                else:
+                    # otherwise verify there's no active cooldowns
+                    cooldown = self.client.cooldown(self.ship.symbol)
+                    if cooldown.data and cooldown.data.remaining_seconds != 0:
+                        logger.info(
+                            f"Ship {self.ship.symbol} waiting for cooldown for {cooldown.data.remaining_seconds} seconds"
+                        )
+                        sleep(cooldown.data.remaining_seconds)
+                    else:
+                        sleep(DEFAULT_ACTIONS_TIMEOUT)
+                    attempts += 1
+            except TraderException as e:
+                if "Empty response" in e.message:
+                    break
+                raise
+        self.reload_ship()
+
+    def wait_for_ship_to_arrive_at_destination(self) -> None:
+        self.reload_ship()
+        time_to_wait = (
+            datetime.fromisoformat(self.ship.nav.route.arrival) - datetime.now(UTC)
+        ).seconds + 1
+        logger.warning(
+            f"Waiting for ship {self.ship.symbol} to arrive at already "
+            f"bound destination {self.ship.nav.route.destination.symbol} for {time_to_wait} second(s)"
+        )
+        sleep(time_to_wait)
+
+    def refresh_market_data(self, system_symbol: str, waypoint_symbol: str) -> None:
+        market = self.client.market(
+            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
+        ).data
+        if market:
+            save_client_market(
+                engine=self.dao.engine,
+                market=market,
+                system_symbol=system_symbol,
+            )
+
+    def refresh_shipyard_data(self, system_symbol: str, waypoint_symbol: str) -> None:
+        shipyard = self.client.shipyard(
+            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
+        ).data
+        if shipyard:
+            save_client_shipyard(
+                engine=self.dao.engine,
+                shipyard=shipyard,
+                system_symbol=system_symbol,
+            )
+
+    def refuel_and_navigate_to_waypoint(self, waypoint_symbol: str, system_symbol: str):
+        logger.info(
+            f"Ship {self.ship.symbol} refueling first and then navigating to waypoint {waypoint_symbol} and waiting"
+        )
+        if (
+            self.ship.fuel.current != self.ship.fuel.capacity
+            and self.ship.frame.name != "Probe"
+        ):
+            # probes do not need to refuel
+            self.refuel_ship()
+            logger.info(
+                f"Ship {self.ship.symbol} completed refueling, heading to {waypoint_symbol} now"
+            )
+        # warning - ensure this is the only usage of navigate below, as we will want to always
+        # refuel to avoid drifting (too slow)
+        self.__navigate_to_waypoint(
+            waypoint_symbol=waypoint_symbol, system_symbol=system_symbol
+        )
 
     def log_update(self, source: str, source_emoji: str, message: str):
         logger.info(f"{source_emoji} - {source} - {message}")

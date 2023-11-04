@@ -5,25 +5,36 @@ from time import sleep
 from typing import List, Optional, cast
 
 from rich.console import Console
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from trader.client.agent import Agent
 from trader.client.client import Client
 from trader.client.contract import Contract
 from trader.client.market import Market, Sale
 from trader.client.navigation import FlightModes, Navigation, NavigationRequestPatch
-from trader.client.payload import RegistrationResponse, RegistrationResponsePayload
+from trader.client.payload import (
+    RegistrationResponse,
+    RegistrationResponsePayload,
+    StatusPayload,
+)
 from trader.client.registration import RegistrationRequestData
 from trader.client.ship import Ship
+from trader.client.ship_purchase import ShipPurchase
+from trader.client.shipyard import Shipyard
 from trader.client.system import System
 from trader.client.waypoint import Waypoint
-from trader.dao.agent_history import AgentHistory
+from trader.dao.agent_histories import (
+    get_agent_histories,
+    get_agent_histories_by_date_cutoff,
+    save_agent_history,
+)
 from trader.dao.dao import DAO
 from trader.dao.markets import save_client_market
-from trader.dao.ship_events import ShipEvent
 from trader.dao.ships import Ship as ShipDAO
-from trader.dao.ships import save_client_ships
-from trader.exceptions import TraderException
+from trader.dao.ships import get_ship, get_ship_events, get_ships, save_client_ships
+from trader.dao.shipyards import save_client_shipyard
+from trader.dao.waypoints import save_client_waypoints
+from trader.exceptions import TraderClientException
 from trader.fleet import Fleet
 from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner_trader import SimpleMinerTrader
@@ -52,9 +63,27 @@ class Trader:
 
     def run_loop(self):
         while True:
+            sleep(DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP)
             self.agent(silent=True)
             self.ships(silent=True)
-            sleep(DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP)
+
+    def status(self) -> None:
+        status_response = self.client.status()
+        status = cast(StatusPayload, status_response)
+        print_as_table(
+            title="Leaderboard (Credits)",
+            data=status.leaderboards.most_credits,
+            console=self.console,
+        )
+        print_as_table(
+            title="Leaderboard (Submitted Charts)",
+            data=status.leaderboards.most_submitted_charts,
+            console=self.console,
+        )
+        print_alert(
+            message=f"Next server reset on {status.server_resets.next} at {status.server_resets.frequency} interval",
+            console=self.console,
+        )
 
     def register(self, call_sign: str, faction: str) -> None:
         registration_response = self.client.register(
@@ -80,35 +109,27 @@ class Trader:
         if not silent:
             print_as_table(title="Agent", data=[agent], console=self.console)
 
-        with Session(self.dao.engine) as session:
-            expression = (
-                select(AgentHistory)
-                .where(
-                    AgentHistory.created_at
-                    >= datetime.utcnow()
-                    - timedelta(seconds=DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP)
+        agent_histories = get_agent_histories_by_date_cutoff(
+            engine=self.dao.engine,
+            cutoff=datetime.utcnow()
+            - timedelta(seconds=DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP),
+        )
+        if not agent_histories:
+            ships = self.client.ships()
+            ship_count = 0
+            in_system_count = 0
+            if ships.data:
+                ship_count = len(ships.data)
+                in_system_count = len(
+                    set([ship.nav.system_symbol for ship in ships.data])
                 )
-                .limit(1)
+            save_agent_history(
+                engine=self.dao.engine,
+                agent_symbol=agent.symbol,
+                credits=agent.credits,
+                ship_count=ship_count,
+                in_system_count=in_system_count,
             )
-            if not session.exec(expression).one_or_none():
-                ships = self.client.ships()
-                ships_count = 0
-                in_system_count = 0
-                if ships.data:
-                    ships_count = len(ships.data)
-                    in_system_count = len(
-                        set([ship.nav.system_symbol for ship in ships.data])
-                    )
-                session.add(
-                    AgentHistory(
-                        agent_symbol=agent.symbol,
-                        credits=agent.credits,
-                        created_at=datetime.utcnow(),
-                        ship_count=ships_count,
-                        in_system_count=in_system_count,
-                    )
-                )
-                session.commit()
 
     def agents(self) -> None:
         agents_response = self.client.agents()
@@ -130,7 +151,7 @@ class Trader:
         print_as_table(title="Cargo", data=[cargo_response], console=self.console)
 
     def set_flight_mode(self, call_sign: str, flight_mode: FlightModes) -> None:
-        set_flight_mode_response = self.client.set_flight_mode(
+        self.client.set_flight_mode(
             call_sign=call_sign, data=NavigationRequestPatch(flight_mode=flight_mode)
         )
         print_alert(
@@ -187,6 +208,43 @@ class Trader:
             engine=self.dao.engine, market=market, system_symbol=system_symbol
         )
 
+    def shipyard(self, system_symbol: str, waypoint_symbol: str) -> None:
+        market_response = self.client.shipyard(
+            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
+        )
+        shipyard = cast(Shipyard, market_response.data)
+        types = ""
+        if shipyard.ship_types:
+            types = ", ".join(
+                [ship_type.ship_type for ship_type in shipyard.ship_types]
+            )
+
+        if shipyard.ships:
+            print_as_table(
+                title=f"Shipyard Ships at {waypoint_symbol} (Possible: {types})",
+                data=shipyard.ships,
+                console=self.console,
+            )
+        else:
+            print_alert(
+                message=f"No ships found at {waypoint_symbol} (Possible: {types})",
+                console=self.console,
+            )
+        save_client_shipyard(
+            engine=self.dao.engine, shipyard=shipyard, system_symbol=system_symbol
+        )
+
+    def purchase_ship(self, waypoint_symbol: str, ship_type: str):
+        ship_purchase_response = self.client.purchase_ship(
+            waypoint_symbol=waypoint_symbol, ship_type=ship_type
+        )
+        ship_purchase = cast(ShipPurchase, ship_purchase_response.data)
+        print_as_table(
+            title=f"Ship purchased - {ship_type}",
+            data=[ship_purchase],
+            console=self.console,
+        )
+
     def sell(self, call_sign: str, symbol: str, units: int) -> None:
         sale_response = self.client.sell(
             call_sign=call_sign, symbol=symbol, units=units
@@ -225,6 +283,16 @@ class Trader:
         waypoints_response = self.client.waypoints(system_symbol=system_symbol)
         waypoints = cast(List[Waypoint], waypoints_response.data)
         print_as_table(title="Waypoints", data=waypoints, console=self.console)
+        save_client_waypoints(engine=self.dao.engine, waypoints=waypoints)
+
+    def waypoint(self, system_symbol: str, waypoint_symbol: str) -> None:
+        waypoint_response = self.client.waypoint(
+            system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
+        )
+        waypoint = cast(Waypoint, waypoint_response.data)
+        print_as_table(
+            title=f"Waypoint - {waypoint_symbol}", data=[waypoint], console=self.console
+        )
 
     def navigate(self, call_sign: str, waypoint_symbol: str) -> None:
         navigate_response = self.client.navigate(
@@ -237,7 +305,7 @@ class Trader:
 
     def miner_trader_loop(self, call_sign: str, repeat: bool) -> None:
         if not self.api_key:
-            raise TraderException("No API key present to proceed")
+            raise TraderClientException("No API key present to proceed")
         miner_trader = SimpleMinerTrader(
             api_key=self.api_key, call_sign=call_sign, repeat=repeat
         )
@@ -245,7 +313,7 @@ class Trader:
 
     def explorer_loop(self, call_sign: str, repeat: bool) -> None:
         if not self.api_key:
-            raise TraderException("No API key present to proceed")
+            raise TraderClientException("No API key present to proceed")
         explorer = SimpleExplorer(
             api_key=self.api_key, call_sign=call_sign, repeat=repeat
         )
@@ -253,7 +321,7 @@ class Trader:
 
     def fleet_loop(self) -> None:
         if not self.api_key:
-            raise TraderException("No API key present to proceed")
+            raise TraderClientException("No API key present to proceed")
         self.ships(silent=True)
         ships: List[ShipDAO] = []
         with Session(self.dao.engine) as session:
@@ -262,48 +330,44 @@ class Trader:
         fleet = Fleet(api_key=self.api_key, ships=ships)
         fleet.run_loop()
 
-    def fleet_summary(
-        self, call_sign: Optional[str] = None, limit: Optional[int] = 1
-    ) -> None:
+    def fleet_summary(self, call_sign: Optional[str] = None, limit: int = 1) -> None:
+        self.ships(silent=True)
         fleet: List[FleetSummaryRow] = []
-        with Session(self.dao.engine) as session:
-            ship_statement = select(ShipDAO)
-            if call_sign:
-                ship_statement = ship_statement.where(ShipDAO.call_sign == call_sign)
-
-            for ship in session.exec(ship_statement):
-                ship_id = cast(str, ship.id)
-                ship_event_statement = (
-                    select(ShipDAO, ShipEvent)
-                    .join(ShipEvent)
-                    .where(ship.id == ShipEvent.ship_id)
-                    .order_by(col(ShipEvent.created_at).desc())
-                    .limit(limit)
+        ship_events = get_ship_events(
+            engine=self.dao.engine, call_sign=call_sign, limit=limit
+        )
+        for ship, ship_event in ship_events:
+            logic, activity = ship_event.event_name.split(".")
+            fleet.append(
+                FleetSummaryRow(
+                    ship_id=str(ship.id),
+                    frame_name=ship.frame_name,
+                    waypoint_symbol=ship.waypoint_symbol,
+                    logic=logic.replace("-", " "),
+                    activity=activity,
+                    duration=ship_event.duration,
+                    credits_earned=ship_event.credits_earned,
+                    credits_spent=ship_event.credits_spent,
+                    record_date=ship_event.created_at,
                 )
-                ship_events = session.exec(ship_event_statement).all()
-                for ship_event in ship_events:
-                    logic, activity = ship_event[1].event_name.split(".")
-                    fleet.append(
-                        FleetSummaryRow(
-                            ship_id=ship_id,
-                            frame_name=ship.frame_name,
-                            waypoint_symbol=ship.waypoint_symbol,
-                            logic=logic.replace("-", " "),
-                            activity=activity,
-                            duration=ship_event[1].duration,
-                            credits_earned=ship_event[1].credits_earned,
-                            credits_spent=ship_event[1].credits_spent,
-                            record_date=ship_event[1].created_at,
-                        )
+            )
+        # include freshly bought ships that haven't been evented yet
+        ships: List[ShipDAO] = []
+        if call_sign:
+            ship = get_ship(engine=self.dao.engine, call_sign=call_sign)
+            if ship:
+                ships = [ship]
+        else:
+            ships = get_ships(engine=self.dao.engine)
+        for ship in ships:
+            if ship.id not in [fleet_member.ship_id for fleet_member in fleet]:
+                fleet.append(
+                    FleetSummaryRow(
+                        ship_id=str(ship.id),
+                        frame_name=ship.frame_name,
+                        waypoint_symbol=ship.waypoint_symbol,
                     )
-                if not ship_events:
-                    fleet.append(
-                        FleetSummaryRow(
-                            ship_id=ship_id,
-                            frame_name=ship.frame_name,
-                            waypoint_symbol=ship.waypoint_symbol,
-                        )
-                    )
+                )
         if call_sign:
             title = f"Ship Summary - {call_sign}"
         else:
@@ -311,24 +375,19 @@ class Trader:
         print_as_table(title=title, data=fleet, console=self.console)
 
     def agent_history(self):
+        self.agent(silent=True)
         agent_histories: List[AgentHistoryRow] = []
-        with Session(self.dao.engine) as session:
-            agent_history_statement = (
-                select(AgentHistory)
-                .order_by(col(AgentHistory.created_at).desc())
-                .limit(20)
-            )
-            agent_histories_data = session.exec(agent_history_statement).all()
-            for agent_history in agent_histories_data:
-                agent_histories.append(
-                    AgentHistoryRow(
-                        agent_symbol=agent_history.agent_symbol,
-                        ship_count=agent_history.ship_count,
-                        in_system_count=agent_history.in_system_count,
-                        credits=agent_history.credits,
-                        record_date=agent_history.created_at,
-                    )
+        agent_histories_data = get_agent_histories(engine=self.dao.engine)
+        for agent_history in agent_histories_data:
+            agent_histories.append(
+                AgentHistoryRow(
+                    agent_symbol=agent_history.agent_symbol,
+                    ship_count=agent_history.ship_count,
+                    in_system_count=agent_history.in_system_count,
+                    credits=agent_history.credits,
+                    record_date=agent_history.created_at,
                 )
+            )
         print_as_table(
             title="Agent History", data=agent_histories, console=self.console
         )

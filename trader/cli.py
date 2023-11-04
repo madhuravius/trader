@@ -58,6 +58,14 @@ def cli(ctx):
 
 
 @trader_command()
+def status():
+    """
+    Print out information about the backend. Ex: [yellow]cli.py status[/yellow]
+    """
+    trader.status()
+
+
+@trader_command()
 @click.argument("call_sign")
 @click.argument("faction", type=click.Choice(["COSMIC"]))
 def register(call_sign: str, faction: str):
@@ -136,6 +144,16 @@ def waypoints(system_symbol: str):
 
 
 @trader_command()
+@click.argument("system_symbol")
+@click.argument("waypoint_symbol")
+def waypoint(system_symbol: str, waypoint_symbol: str):
+    """
+    Print out information for all waypoints for a provided system symbol. Ex: [yellow]cli.py waypoints SYMBOL[/yellow]
+    """
+    trader.waypoint(system_symbol=system_symbol, waypoint_symbol=waypoint_symbol)
+
+
+@trader_command()
 @click.argument("call_sign")
 def dock(call_sign: str):
     """
@@ -195,9 +213,19 @@ def navigate(call_sign: str, waypoint_symbol: str):
 @click.argument("waypoint_symbol")
 def market(system_symbol: str, waypoint_symbol: str):
     """
-    Prints market information for a provided system and market symbol. Ex: [yellow]cli.py market SYSTEM_SYMBOL WAYPOINT_SYMBOL[/yellow]
+    Prints market information for a provided system and waypoint symbol. Ex: [yellow]cli.py market SYSTEM_SYMBOL WAYPOINT_SYMBOL[/yellow]
     """
     trader.market(system_symbol=system_symbol, waypoint_symbol=waypoint_symbol)
+
+
+@trader_command()
+@click.argument("system_symbol")
+@click.argument("waypoint_symbol")
+def shipyard(system_symbol: str, waypoint_symbol: str):
+    """
+    Prints shipyard information for a provided system and waypoint symbol. Ex: [yellow]cli.py shipyard SYSTEM_SYMBOL WAYPOINT_SYMBOL[/yellow]
+    """
+    trader.shipyard(system_symbol=system_symbol, waypoint_symbol=waypoint_symbol)
 
 
 @trader_command()
@@ -228,6 +256,16 @@ def sell(call_sign: str, symbol: str, units: int):
     Attempts to conduct a sale for a given ship's call sign, and will sell X units (provided) of Y symbols (provided). Ex: [yellow]cli.py sell CALL_SIGN SYMBOL UNITS[/yellow]
     """
     trader.sell(call_sign=call_sign, symbol=symbol, units=units)
+
+
+@trader_command()
+@click.argument("waypoint_symbol")
+@click.argument("ship_type")
+def purchase_ship(waypoint_symbol: str, ship_type: str):
+    """
+    Starts purchase of a ship with a payload. Requires another ship at its station.  Ex: [yellow]cli.py purchase-ship WAYPOINT_SYMBOL SHIP_TYPE [/yellow]
+    """
+    trader.purchase_ship(waypoint_symbol=waypoint_symbol, ship_type=ship_type)
 
 
 @trader_command()
@@ -291,6 +329,9 @@ def agent_history():
     trader.agent_history()
 
 
+# unique status cli command of backend
+cli.add_command(status)
+
 # basic cli commands
 cli.add_command(agent)
 cli.add_command(agents)
@@ -303,13 +344,16 @@ cli.add_command(refuel)
 cli.add_command(market)
 cli.add_command(navigate)
 cli.add_command(orbit)
+cli.add_command(purchase_ship)
 cli.add_command(register)
 cli.add_command(sell)
 cli.add_command(set_flight_mode)
 cli.add_command(ships)
 cli.add_command(ship)
+cli.add_command(shipyard)
 cli.add_command(system)
 cli.add_command(systems)
+cli.add_command(waypoint)
 cli.add_command(waypoints)
 
 # commands for testing more complex behaviors

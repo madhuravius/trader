@@ -5,6 +5,7 @@ from dataclass_wizard import JSONWizard, json_key
 
 from trader.client.fuel import Fuel
 
+FlightStatuses = Literal["IN_TRANSIT", "IN_ORBIT", "DOCKED"]
 FlightModes = Literal["DRIFT", "STEALTH", "CRUISE", "BURN"]
 
 
@@ -31,8 +32,8 @@ class Navigation(JSONWizard):
     system_symbol: str
     waypoint_symbol: str
     route: Route
-    status: str
-    flight_mode: str
+    status: FlightStatuses
+    flight_mode: FlightModes
 
 
 @dataclass

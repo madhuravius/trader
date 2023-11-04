@@ -1,10 +1,10 @@
 import os
 from typing import Any, Dict, List, Literal, Optional, Type, cast
+from uuid import uuid4
 
 import httpx
 from loguru import logger
 
-from trader.cache import Cache
 from trader.client.cargo import SellCargoRequest
 from trader.client.navigation import NavigationRequestData, NavigationRequestPatch
 from trader.client.payload import (
@@ -24,7 +24,10 @@ from trader.client.payload import (
     RegistrationResponsePayload,
     SalePayload,
     ShipPayload,
+    ShipPurchasePayload,
     ShipsPayload,
+    ShipyardPayload,
+    StatusPayload,
     SystemPayload,
     SystemsPayload,
     WaypointPayload,
@@ -32,15 +35,13 @@ from trader.client.payload import (
 )
 from trader.client.registration import RegistrationRequestData
 from trader.client.request import ClientRequest
-from trader.exceptions import TraderException
-from trader.queue import Queue
+from trader.client.request_cache import Cache
+from trader.client.shipyard import ShipPurchaseRequestData
+from trader.exceptions import TraderClientException
+from trader.queue.request_queue import RequestQueue
 from trader.util.singleton import Singleton
 
 BASE_URL = "https://api.spacetraders.io/v2"
-
-LOW_ADDED_PRIORITY = 1  # research related, rarely blocking revenue generation
-MEDIUM_ADDED_PRIORITY = 2  # navigation or common related (possibly blocking revenue)
-HIGH_ADDED_PRIORITY = 3  # revenue generating activities guaranteed blocked
 
 
 class CoreClient(metaclass=Singleton):
@@ -52,17 +53,15 @@ class CoreClient(metaclass=Singleton):
     api_key: Optional[str]
     bearer: str
     cache: Cache
-    queue: Queue
 
     def __init__(self, api_key: Optional[str]) -> None:
         self.api_key = api_key
         self.bearer = f"Bearer {self.api_key}".replace("\n", "")
         self.cache = Cache()
-        self.queue = Queue()
 
     def ensure_api_key(self):
         if not self.api_key:
-            raise TraderException("No API key found in path, error!")
+            raise TraderClientException("No API key found in path, error!")
 
 
 class Client:
@@ -72,13 +71,17 @@ class Client:
     """
 
     base_priority: int
+    client_id: str
     core: CoreClient
     debug: bool
+    request_queue: RequestQueue
 
     def __init__(self, api_key: Optional[str], base_priority: int = 0) -> None:
-        self.core_client = CoreClient(api_key=api_key)
         self.base_priority = base_priority
+        self.client_id = str(uuid4())
+        self.core_client = CoreClient(api_key=api_key)
         self.debug = "DEBUG" in os.environ
+        self.request_queue = RequestQueue(client_id=self.client_id)
 
     def set_base_priority(self, base_priority: int):
         self.base_priority = base_priority
@@ -88,18 +91,20 @@ class Client:
             logger.error(
                 f"Error {response.error.code} in handling request: {response.error.message}"
             )
-            raise TraderException(
+            raise TraderClientException(
                 response.error.message or f"Error with code: {response.error.code}"
             )
 
     def ensure_singular_payload(
-        self, response_content: bytes, data_type: Type[PayloadTypes]
-    ) -> PayloadTypes:
+        self,
+        response_content: bytes,
+        data_type: Type[PayloadTypes] | Type[StatusPayload],
+    ) -> PayloadTypes | StatusPayload:
         """
         This function ensures a single payload because dataclass_wizard will often generate array results
         """
         if not response_content:
-            raise TraderException(message="Empty response")
+            raise TraderClientException(message="Empty response")
 
         try:
             response = data_type.from_json(response_content)
@@ -110,6 +115,8 @@ class Client:
             response = response[0]
 
         self.ensure_success(response)
+        if "REQUEST_DEBUG" in os.environ:
+            logger.debug(response)
         return response
 
     def execute_single_request(
@@ -152,10 +159,10 @@ class Client:
         else:
             request = ClientRequest(function=httpx.get, arguments=arguments)
 
-        request_id = self.core_client.queue.enqueue(
+        request_id = self.request_queue.enqueue(
             request=request, priority=self.base_priority + added_priority
         )
-        response = self.core_client.queue.wait_for_response(request_id=request_id)
+        response = self.request_queue.wait_for_response(request_id=request_id)
 
         if check_cache:
             cache_arguments = {
@@ -180,7 +187,7 @@ class Client:
         self,
         url: str,
         method: Literal["GET", "POST", "PATCH"],
-        data_type: Type[PayloadTypes],
+        data_type: Type[PayloadTypes | StatusPayload],
         cache_timeout: Optional[float] = None,
         check_cache: bool = True,
         data: Optional[Dict[str, Any]] = {},
@@ -189,7 +196,7 @@ class Client:
         requires_auth: bool = True,
         added_priority: int = 0,
         limit: int = 20,
-    ) -> PayloadTypes:
+    ) -> PayloadTypes | StatusPayload:
         if requires_auth:
             self.core_client.ensure_api_key()
 
@@ -209,27 +216,34 @@ class Client:
             response_content=response.content, data_type=data_type
         )
 
+        if type(result) == StatusPayload:
+            return result
+
+        result = cast(PayloadTypes, result)
         if is_paged and result.meta and type(result.data) == list:
             logger.info(
                 f"Querying paged results for total {result.meta.total} entries."
             )
             accumulated_total = limit
-            results: List[PayloadTypes] = [result]
+            results: List[PayloadTypes] = cast(List[PayloadTypes], [result])
             while accumulated_total < result.meta.total:
                 page += 1
-                paged_result = self.ensure_singular_payload(
-                    response_content=self.execute_single_request(
-                        url=url,
-                        method=method,
-                        cache_timeout=cache_timeout,
-                        check_cache=check_cache,
-                        data=data,
-                        is_paged=is_paged,
-                        page=page,
-                        added_priority=added_priority,
-                        limit=limit,
-                    ).content,
-                    data_type=data_type,
+                paged_result = cast(
+                    PayloadTypes,
+                    self.ensure_singular_payload(
+                        response_content=self.execute_single_request(
+                            url=url,
+                            method=method,
+                            cache_timeout=cache_timeout,
+                            check_cache=check_cache,
+                            data=data,
+                            is_paged=is_paged,
+                            page=page,
+                            added_priority=added_priority,
+                            limit=limit,
+                        ).content,
+                        data_type=data_type,
+                    ),
                 )
                 results.append(paged_result)
                 accumulated_total += limit
@@ -251,6 +265,16 @@ class Client:
         )
 
         return cast(RegistrationResponsePayload, result)
+
+    def status(self) -> StatusPayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/",
+            method="GET",
+            check_cache=False,
+            data_type=StatusPayload,
+            requires_auth=False,
+        )
+        return cast(StatusPayload, result)
 
     def agents(self) -> AgentsPayload:
         result = self.conduct_request(
@@ -290,7 +314,6 @@ class Client:
             check_cache=False,
             is_paged=True,
             data_type=ShipPayload,
-            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(ShipPayload, result)
 
@@ -314,7 +337,6 @@ class Client:
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}",
             method="GET",
             data_type=WaypointPayload,
-            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(WaypointPayload, result)
 
@@ -324,7 +346,6 @@ class Client:
             method="GET",
             is_paged=True,
             data_type=WaypointsPayload,
-            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(WaypointsPayload, result)
 
@@ -335,7 +356,6 @@ class Client:
             data=NavigationRequestData(waypoint_symbol=waypoint_symbol).to_dict(),
             check_cache=False,
             data_type=NavigationPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(NavigationPayload, result)
 
@@ -345,7 +365,6 @@ class Client:
             method="POST",
             check_cache=False,
             data_type=OrbitPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(OrbitPayload, result)
 
@@ -355,7 +374,6 @@ class Client:
             method="POST",
             check_cache=False,
             data_type=DockPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(DockPayload, result)
 
@@ -377,7 +395,6 @@ class Client:
             method="PATCH",
             check_cache=False,
             data_type=NavigationPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(CargoPayload, result)
 
@@ -387,7 +404,6 @@ class Client:
             method="POST",
             check_cache=False,
             data_type=ExtractPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(ExtractPayload, result)
 
@@ -397,7 +413,6 @@ class Client:
             method="POST",
             check_cache=False,
             data_type=RefuelPayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(RefuelPayload, result)
 
@@ -407,7 +422,6 @@ class Client:
             method="GET",
             check_cache=False,
             data_type=CooldownPayload,
-            added_priority=MEDIUM_ADDED_PRIORITY,
         )
         return cast(CooldownPayload, result)
 
@@ -418,7 +432,6 @@ class Client:
             check_cache=True,
             cache_timeout=120,  # drop cache every 120 seconds or so
             data_type=MarketPayload,
-            added_priority=LOW_ADDED_PRIORITY,
         )
         return cast(MarketPayload, result)
 
@@ -429,6 +442,30 @@ class Client:
             data=SellCargoRequest(symbol=symbol, units=units).to_dict(),
             check_cache=False,
             data_type=SalePayload,
-            added_priority=HIGH_ADDED_PRIORITY,
         )
         return cast(SalePayload, result)
+
+    def shipyard(self, system_symbol: str, waypoint_symbol: str) -> ShipyardPayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/shipyard",
+            method="GET",
+            check_cache=True,
+            cache_timeout=120,  # drop cache every 120 seconds or so
+            data_type=ShipyardPayload,
+        )
+        return cast(ShipyardPayload, result)
+
+    def purchase_ship(
+        self, ship_type: str, waypoint_symbol: str
+    ) -> ShipPurchasePayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/ships",
+            method="POST",
+            data=ShipPurchaseRequestData(
+                ship_type=ship_type, waypoint_symbol=waypoint_symbol
+            ).to_dict(),
+            check_cache=False,
+            cache_timeout=120,  # drop cache every 120 seconds or so
+            data_type=ShipPurchasePayload,
+        )
+        return cast(ShipPurchasePayload, result)

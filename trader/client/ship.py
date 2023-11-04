@@ -10,12 +10,12 @@ from trader.client.navigation import Navigation
 
 @dataclass
 class ShipCrew(JSONWizard):
-    current: int
     required: int
     capacity: int
-    rotation: str
-    morale: int
-    wages: int
+    current: Optional[int] = None
+    rotation: Optional[str] = None
+    morale: Optional[int] = None
+    wages: Optional[int] = None
 
 
 @dataclass
@@ -50,9 +50,9 @@ class ShipReactor(JSONWizard):
     symbol: str
     name: str
     description: str
-    condition: int
     power_output: int
     requirements: ShipRequirements
+    condition: Optional[int] = None
 
 
 @dataclass
@@ -60,9 +60,9 @@ class ShipEngine(JSONWizard):
     symbol: str
     name: str
     description: str
-    condition: int
     speed: int
     requirements: ShipRequirements
+    condition: Optional[int] = None
 
 
 @dataclass
@@ -78,8 +78,8 @@ class ShipMount(JSONWizard):
     symbol: str
     name: str
     description: str
-    strength: int
     requirements: ShipRequirements
+    strength: Optional[int] = None
 
 
 @dataclass
@@ -94,11 +94,11 @@ class ShipFrame(JSONWizard):
     symbol: str
     name: str
     description: str
-    condition: int
     module_slots: int
     mounting_points: int
     fuel_capacity: int
     requirements: ShipRequirements
+    condition: Optional[int] = None
 
 
 @dataclass

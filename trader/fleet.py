@@ -7,6 +7,7 @@ from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner_trader import SimpleMinerTrader
 
 MAP_OF_SHIP_FRAME_TO_LOGIC = {"Frigate": SimpleMinerTrader, "Probe": SimpleExplorer}
+DESIRED_FLEET_DISTRIBUTION = {"Frigate": 1, "Probe": 4}
 
 
 class Fleet:

@@ -1,3 +1,48 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trader"
+version = "0.0.1"
+description = "Trader app for use with space-trader api"
+dependencies = [
+    "alembic",
+    "click",
+    "dataclass_wizard",
+    "dill",
+    "httpx",
+    "loguru",
+    "rich",
+    "rich_click",
+    "sqlmodel",
+    "tsp_solver2"
+]
+
+[project.optional-dependencies]
+build = [
+    "pex"
+]
+dev = [
+    "black",
+    "isort",
+    "pex",
+    "pip-tools",
+    "pyright",
+    "pytest-cov",
+    "pytest_httpx"
+]
+
+[project.scripts]
+trader = "trader.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.dynamic]
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+optional-dependencies.build = { file = ["requirements-build.txt"] }
+
 [tool.isort]
 profile = "black"
 
@@ -9,5 +54,5 @@ reportMissingTypeStubs = false
 reportUnusedImport = true
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
+

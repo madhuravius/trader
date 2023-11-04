@@ -5,13 +5,28 @@ from typing import List
 from loguru import logger
 
 from trader.client.ship import Ship
+from trader.queue.action_queue import ActionQueue
 from trader.roles.common import Common as CommonRole
+
+DEFAULT_INTERNAL_LOOP_INTERVAL = 3
 
 
 class Common(ABC):
+    """
+    Core logic class for ship behaviors. This basically should have common actions
+    and resources that will get reused by all ship behaviors.
+
+    The `action_queue` is very critical as it allows for us to change the course of an
+    existing ship's plan (readjusting priorities, changing its work, etc.) with overrides
+    for debugging and testing
+    """
+
+    action_queue: ActionQueue
+    base_priority: int
     ship: Ship
     roles: List[CommonRole]
     repeat: bool
+    running_loop: bool = False
 
     def compute_role_metrics(self):
         total_credits_earned = sum([role.credits_earned for role in self.roles])
