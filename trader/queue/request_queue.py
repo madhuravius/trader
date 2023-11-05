@@ -34,11 +34,12 @@ class RequestQueue(metaclass=Singleton):
     responses: Dict[str, httpx.Response] = {}
     request_queue_instance: str
 
-    def __init__(self, client_id: str):
+    def __init__(self, client_id: str, disable_background_processes: bool = False):
         self.request_queue_instance = client_id
-        thread = Thread(target=self.run_loop)
-        thread.setDaemon(True)
-        thread.start()
+        if not disable_background_processes:
+            thread = Thread(target=self.run_loop)
+            thread.setDaemon(True)
+            thread.start()
 
     def get_request_debug_info(
         self, request_function: Callable, request_arguments: Dict[str, Any]

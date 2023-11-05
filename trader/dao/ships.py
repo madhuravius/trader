@@ -1,10 +1,11 @@
 from typing import List, Optional, Tuple
 
 from sqlalchemy.engine import Engine
-from sqlmodel import Field, Session, SQLModel, col, select
+from sqlmodel import Field, Relationship, Session, SQLModel, col, select
 
 from trader.client.ship import Ship as ShipClient
 from trader.dao.ship_events import ShipEvent
+from trader.dao.squads import SquadMember
 
 
 class Ship(SQLModel, table=True):

@@ -23,6 +23,9 @@ class ClickCommandWrapper(click.Command):
             )
             close_cli(code=1)
         except Exception as e:
+            print_alert(
+                message=f"Uncaught exception: {repr(e)}", console=trader.console
+            )
             close_cli(code=1)
 
 

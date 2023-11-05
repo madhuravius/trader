@@ -29,16 +29,21 @@ class ActionQueue:
     queue_id: str
 
     def __init__(
-        self, ship: Ship, queue_name: str, purge: Optional[bool] = False
+        self,
+        ship: Ship,
+        queue_name: str,
+        purge: Optional[bool] = False,
+        disable_background_processes: bool = False,
     ) -> None:
         self.ship = ship
         self.queue_id = f"{self.ship.symbol}-{queue_name}"
         self.queue = Queue(queue_id=self.queue_id, queue_name=queue_name)
         if purge:
             self.queue.purge()
-        thread = Thread(target=self.run_loop)
-        thread.setDaemon(True)
-        thread.start()
+        if not disable_background_processes:
+            thread = Thread(target=self.run_loop)
+            thread.setDaemon(True)
+            thread.start()
 
     def dequeue(self):
         (action, data) = self.queue.pop()
@@ -61,6 +66,7 @@ class ActionQueue:
                     attempt += 1
                     sleep(3)
                     continue
+                # TODO: When more stable, should probably purge the queue and start over
                 raise
 
     def len(self):

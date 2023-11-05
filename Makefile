@@ -44,8 +44,12 @@ lint: black_check isort_check pyright_check
 .PHONY: lint
 
 test:
-	$(PYTHON_VENV) pytest trader/tests -v --cov=./trader --cov-report term-missing
+	$(PYTHON_VENV) pytest trader/tests -v --cov=./trader --cov-report term-missing --cov-config=.coveragerc
 .PHONY: test
+
+test-verbose:
+	$(PYTHON_VENV) pytest trader/tests -s -v --cov=./trader --cov-report term-missing --cov-config=.coveragerc
+.PHONY: test-verbose
 
 migrations:
 	$(PYTHON_VENV) python -m alembic revision --autogenerate || true

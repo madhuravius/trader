@@ -76,12 +76,20 @@ class Client:
     debug: bool
     request_queue: RequestQueue
 
-    def __init__(self, api_key: Optional[str], base_priority: int = 0) -> None:
+    def __init__(
+        self,
+        api_key: Optional[str],
+        base_priority: int = 0,
+        disable_background_processes: bool = False,
+    ) -> None:
         self.base_priority = base_priority
         self.client_id = str(uuid4())
         self.core_client = CoreClient(api_key=api_key)
         self.debug = "DEBUG" in os.environ
-        self.request_queue = RequestQueue(client_id=self.client_id)
+        self.request_queue = RequestQueue(
+            client_id=self.client_id,
+            disable_background_processes=disable_background_processes,
+        )
 
     def set_base_priority(self, base_priority: int):
         self.base_priority = base_priority

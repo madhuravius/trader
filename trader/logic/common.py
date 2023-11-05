@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import List
+from datetime import UTC, datetime
+from typing import List, Optional
 
 from loguru import logger
 
 from trader.client.ship import Ship
+from trader.dao.squads import Squad
 from trader.queue.action_queue import ActionQueue
 from trader.roles.common import Common as CommonRole
 
@@ -18,12 +19,14 @@ class Common(ABC):
 
     The `action_queue` is very critical as it allows for us to change the course of an
     existing ship's plan (readjusting priorities, changing its work, etc.) with overrides
-    for debugging and testing
+    for debugging and testing. This is very useful when we add ships and need squad behavior
+    as it will change as soon as a ship is added.
     """
 
     action_queue: ActionQueue
     base_priority: int
     ship: Ship
+    squad: Optional[Squad]
     roles: List[CommonRole]
     repeat: bool
     running_loop: bool = False
@@ -33,7 +36,7 @@ class Common(ABC):
         total_credits_spent = sum([role.credits_spent for role in self.roles])
         total_time_spent = sum(
             [
-                int((datetime.utcnow() - role.time_started).total_seconds())
+                int((datetime.now(UTC) - role.time_started).total_seconds())
                 for role in self.roles
             ]
         )

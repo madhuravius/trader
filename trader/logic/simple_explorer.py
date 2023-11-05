@@ -7,6 +7,7 @@ from loguru import logger
 from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, ActionQueue, Common
 from trader.queue.action_queue import ActionQueueElement
 from trader.roles.explorer import Explorer
+from trader.roles.navigator.navigator import Navigator
 
 
 class SimpleExplorer(Common):
@@ -25,6 +26,9 @@ class SimpleExplorer(Common):
         self.explorer = Explorer(
             api_key=api_key, call_sign=call_sign, base_priority=self.base_priority
         )
+        self.navigator = Navigator(
+            api_key=api_key, call_sign=call_sign, base_priority=self.base_priority
+        )
         self.roles = [self.explorer]
         self.repeat = repeat
         self.ship = self.explorer.ship
@@ -33,9 +37,12 @@ class SimpleExplorer(Common):
         )
 
     def find_optimal_path_and_traverse(self):
-        waypoints = self.explorer.find_optimal_path_to_explore()
+        waypoints = self.explorer.find_relevant_paths_to_explore(
+            filters=["MARKETPLACE", "SHIPYARD"]
+        )
+        ordered_waypoints = self.navigator.shortest_traveling_salesman_route(waypoints)
         self.explorer.traverse_all_waypoints_and_check_markets_and_shipyards(
-            waypoints=waypoints
+            waypoints=ordered_waypoints
         )
 
     def run_loop(self):

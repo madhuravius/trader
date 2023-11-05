@@ -61,6 +61,10 @@ class SimpleMinerTrader(Common):
                         f"Starting iteration {iteration} of loop for ship {self.ship.symbol}"
                     )
 
+                # TODO: Toggle actions based on if it's simply better to do trades with information available
+                # or mine and sell
+                # alternatively if there's no possible way this can work, don't continue right now
+
                 actions: List[ActionQueueElement] = [
                     (
                         self.persist_audit_performance,

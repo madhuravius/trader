@@ -1,5 +1,4 @@
-import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Thread
 from time import sleep
 from typing import List, Optional, cast
@@ -40,8 +39,8 @@ from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner_trader import SimpleMinerTrader
 from trader.print.models import AgentHistoryRow, FleetSummaryRow
 from trader.print.print import print_alert, print_as_table
+from trader.util.keys import read_api_key_from_disk, write_api_key_to_disk
 
-TOKEN_PATH = ".token"
 DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP = 300
 
 
@@ -51,15 +50,23 @@ class Trader:
     console = Console()
     dao: DAO
 
-    def __init__(self) -> None:
-        if os.path.exists(TOKEN_PATH):
-            with open(TOKEN_PATH, "r") as file:
-                self.api_key = file.read()
-        self.client = Client(api_key=self.api_key)
+    def __init__(
+        self, api_key: Optional[str] = None, disable_background_processes: bool = False
+    ) -> None:
+        if api_key:
+            # this does not persist the API key, can be used for overriding clients
+            self.api_key = api_key
+        else:
+            self.api_key = read_api_key_from_disk()
+        self.client = Client(
+            api_key=self.api_key,
+            disable_background_processes=disable_background_processes,
+        )
         self.dao = DAO()
-        thread = Thread(target=self.run_loop)
-        thread.setDaemon(True)
-        thread.start()
+        if not disable_background_processes:
+            thread = Thread(target=self.run_loop)
+            thread.setDaemon(True)
+            thread.start()
 
     def run_loop(self):
         while True:
@@ -92,14 +99,13 @@ class Trader:
                 faction=faction,
             )
         )
-        with open(TOKEN_PATH, "w") as file:
-            token = cast(
-                RegistrationResponse,
-                cast(RegistrationResponsePayload, registration_response).data,
-            ).token
-            file.write(token)
-            self.api_key = token
-            self.client = Client(api_key=token)
+        token = cast(
+            RegistrationResponse,
+            cast(RegistrationResponsePayload, registration_response).data,
+        ).token
+        write_api_key_to_disk(token)
+        self.api_key = token
+        self.client = Client(api_key=token)
         self.client.core_client.ensure_api_key()
         print_alert(message=f"Registered as {call_sign}", console=self.console)
 
@@ -111,7 +117,7 @@ class Trader:
 
         agent_histories = get_agent_histories_by_date_cutoff(
             engine=self.dao.engine,
-            cutoff=datetime.utcnow()
+            cutoff=datetime.now(UTC)
             - timedelta(seconds=DEFAULT_TIMEOUT_TO_RUN_MAIN_TRADER_LOOP),
         )
         if not agent_histories:

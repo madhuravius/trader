@@ -1,5 +1,5 @@
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
+from typing import List, Optional
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, select
@@ -14,7 +14,7 @@ class MarketImport(SQLModel, table=True):
     symbol: str
     name: str
     description: str
-    created_at: datetime = Field(index=True, default=datetime.utcnow())
+    created_at: datetime = Field(index=True, default=datetime.now(UTC))
     waypoint_symbol: str = Field(index=True)
     system_symbol: str
 
@@ -24,7 +24,7 @@ class MarketExport(SQLModel, table=True):
     symbol: str
     name: str
     description: str
-    created_at: datetime = Field(index=True, default=datetime.utcnow())
+    created_at: datetime = Field(index=True, default=datetime.now(UTC))
     waypoint_symbol: str = Field(index=True)
     system_symbol: str
 
@@ -34,7 +34,7 @@ class MarketExchange(SQLModel, table=True):
     symbol: str
     name: str
     description: str
-    created_at: datetime = Field(index=True, default=datetime.utcnow())
+    created_at: datetime = Field(index=True, default=datetime.now(UTC))
     waypoint_symbol: str = Field(index=True)
     system_symbol: str
 
@@ -47,7 +47,7 @@ class MarketTransaction(SQLModel, table=True):
     units: int
     price_per_unit: int
     total_price: int
-    created_at: datetime = Field(index=True, default=datetime.utcnow())
+    created_at: datetime = Field(index=True, default=datetime.now(UTC))
     waypoint_symbol: str = Field(index=True)
     system_symbol: str
 
@@ -219,3 +219,13 @@ def save_client_market(
                     )
                 )
         session.commit()
+
+
+def get_market_trade_goods_by_system(
+    engine: Engine, system_symbol: str
+) -> List[MarketTradeGood]:
+    with Session(engine) as session:
+        expression = select(MarketTradeGood).where(
+            MarketTradeGood.system_symbol == system_symbol
+        )
+        return session.exec(expression).all()

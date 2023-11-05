@@ -1,14 +1,14 @@
 from datetime import UTC, datetime
 from math import dist
 from time import sleep
-from typing import Callable, Dict, List, Optional
+from typing import List, Optional
 
 from loguru import logger
 from sqlmodel import Session, select
 
 from trader.client.client import Client
 from trader.client.market import Exchange
-from trader.client.navigation import FlightModes, NavigationRequestPatch
+from trader.client.navigation import NavigationRequestPatch
 from trader.client.ship import Ship
 from trader.client.waypoint import Waypoint
 from trader.dao.dao import DAO
@@ -19,6 +19,7 @@ from trader.dao.shipyards import save_client_shipyard
 from trader.dao.waypoints import Waypoint as WaypointDAO
 from trader.dao.waypoints import get_waypoints_by_system_symbol, save_client_waypoints
 from trader.exceptions import TraderClientException, TraderException
+from trader.roles.navigator.fuel import FUEL_COST_MULTIPLIER
 
 DEFAULT_ACTIONS_TIMEOUT = 5
 
@@ -38,7 +39,7 @@ class Common:
         self.base_priority = base_priority
         self.client = Client(api_key=api_key, base_priority=self.base_priority)
         self.dao = DAO()
-        self.time_started = datetime.utcnow()
+        self.time_started = datetime.now(UTC)
 
         ship = self.client.ship(call_sign=call_sign).data
         if not ship:
@@ -90,7 +91,7 @@ class Common:
     def reset_metrics(self):
         self.credits_earned = 0
         self.credits_spent = 0
-        self.time_started = datetime.utcnow()
+        self.time_started = datetime.now(UTC)
 
     def add_to_credits_earned(self, credits: int):
         self.credits_earned += credits
@@ -158,31 +159,13 @@ class Common:
     def set_flight_mode_for_fuel_and_frame(
         self, waypoint_symbol: str, system_symbol: str
     ):
-        """
-        fuel is cmputed based on the following matrix:
-
-        CRUISE  = d
-        DRIFT   = 1
-        BURN    = 2d
-        STEALTH = d
-        """
-        fuel_cost_multiplier: Dict[FlightModes, Callable[[int], int]] = {
-            "CRUISE": lambda distance: distance,
-            "DRIFT": lambda _: 1,
-            "BURN": lambda distance: 2 * distance,
-            "STEALTH": lambda distance: distance,
-        }
-
         if self.ship.frame.name == "Probe":
             logger.info(
-                f"Setting probe {self.ship.symbol} flight mode to burn as it is a probe (no fuel cost)"
+                f"Is probe {self.ship.symbol}, so no need to change flight mode"
             )
-            return self.client.set_flight_mode(
-                call_sign=self.ship.symbol,
-                data=NavigationRequestPatch(flight_mode="BURN"),
-            )
+            # probes have no impact if you change their flight mode as per fix week 11/3
+            return
 
-        # otherwise check the cost and determine which to use
         waypoint = self.client.waypoint(
             system_symbol=system_symbol, waypoint_symbol=waypoint_symbol
         ).data
@@ -191,9 +174,11 @@ class Common:
                 [waypoint.x, waypoint.y],
                 [self.ship.nav.route.destination.x, self.ship.nav.route.destination.y],
             )
-            fuel_cost = fuel_cost_multiplier[self.ship.nav.flight_mode](int(distance))
+            fuel_cost = FUEL_COST_MULTIPLIER[self.ship.nav.flight_mode](int(distance))
             flight_mode_to_use = "CRUISE"
-            if fuel_cost > 0.8 * self.ship.fuel.current:  # be a little conservative about saved fuel
+            if (
+                fuel_cost > 0.8 * self.ship.fuel.current
+            ):  # be a little conservative about saved fuel
                 # if too expensive, rely on drift
                 flight_mode_to_use = "DRIFT"
 
@@ -345,7 +330,7 @@ class Common:
                     waypoint_symbol=waypoint_symbol,
                     credits_earned=credits_earned,
                     credits_spent=credits_spent,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
                 )
             )
             session.commit()

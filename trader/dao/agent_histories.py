@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import List, Optional
 
 from sqlalchemy.engine import Engine
@@ -8,7 +8,7 @@ from sqlmodel import Field, Session, SQLModel, col, select
 class AgentHistory(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     agent_symbol: str
-    created_at: datetime = Field(index=True, default=datetime.utcnow())
+    created_at: datetime = Field(index=True, default=datetime.now(UTC))
     ship_count: int
     in_system_count: int
     credits: int
@@ -48,7 +48,7 @@ def save_agent_history(
             AgentHistory(
                 agent_symbol=agent_symbol,
                 credits=credits,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
                 ship_count=ship_count,
                 in_system_count=in_system_count,
             )

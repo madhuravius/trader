@@ -27,11 +27,12 @@ class Cache(metaclass=Singleton):
 
     dao: DAO
 
-    def __init__(self):
+    def __init__(self, disable_background_processes: bool = False):
         self.dao = DAO()
-        thread = Thread(target=self.run_loop)
-        thread.setDaemon(True)
-        thread.start()
+        if not disable_background_processes:
+            thread = Thread(target=self.run_loop)
+            thread.setDaemon(True)
+            thread.start()
 
     def generate_cached_request_id(
         self, method: str, url: str, serialized_data: str, params: str

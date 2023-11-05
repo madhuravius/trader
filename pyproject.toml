@@ -7,30 +7,36 @@ name = "trader"
 version = "0.0.1"
 description = "Trader app for use with space-trader api"
 dependencies = [
-    "alembic",
-    "click",
-    "dataclass_wizard",
-    "dill",
-    "httpx",
-    "loguru",
-    "rich",
-    "rich_click",
-    "sqlmodel",
-    "tsp_solver2"
+    "alembic==1.*",
+    "click==8.*",
+    "dataclass_wizard==0.22.*",
+    "dill==0.3.*",
+    "httpx==0.25.*",
+    "loguru==0.7.*",
+    "pandas==2.*",
+    "rich==13.*",
+    "rich_click==1.*",
+    "sqlmodel==0.0.*",
+    "tsp_solver2==0.4.*"
 ]
 
 [project.optional-dependencies]
 build = [
-    "pex"
+    "pex==2.*"
 ]
 dev = [
-    "black",
-    "isort",
-    "pex",
-    "pip-tools",
-    "pyright",
-    "pytest-cov",
-    "pytest_httpx"
+    "black==23.*",
+    "ipython==8.*",
+    "isort==5.*",
+    "pex==2.*",
+    "pip-tools==7.*",
+    "polyfactory==2.*",
+    "pyright==1.*",
+    "pytest==7.*",
+    "pytest-cov==4.*",
+    "pytest-env==1.*",
+    "pytest-socket==0.6.*",
+    "respx==0.20.*"
 ]
 
 [project.scripts]
@@ -53,6 +59,11 @@ reportMissingImports = true
 reportMissingTypeStubs = false
 reportUnusedImport = true
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[tool.pytest_env]
+DB_URL = "sqlite:///test.db"
 
+[tool.pytest.ini_options]
+testpaths = ["trader/tests"]
+pythonpath = [
+  "."
+]

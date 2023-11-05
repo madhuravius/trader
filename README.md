@@ -51,7 +51,3 @@ docker run \
     ghcr.io/madhuravius/trader
 ```
 
-## Credits
-
-Large parts of this repository, namely around automation via GH Actions (used in this repository as Gitea Actions) and
-also distribution used [this repository](https://github.com/aptible/aptstract) as reference.
