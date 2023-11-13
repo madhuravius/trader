@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from trader.client.agent import Agent
 from trader.client.client import Client
 from trader.client.contract import Contract
-from trader.client.market import Market, Sale
+from trader.client.market import Market, PurchaseOrSale
 from trader.client.navigation import FlightModes, Navigation, NavigationRequestPatch
 from trader.client.payload import (
     RegistrationResponse,
@@ -36,7 +36,8 @@ from trader.dao.waypoints import save_client_waypoints
 from trader.exceptions import TraderClientException
 from trader.fleet import Fleet
 from trader.logic.simple_explorer import SimpleExplorer
-from trader.logic.simple_miner_trader import SimpleMinerTrader
+from trader.logic.simple_miner import SimpleMiner
+from trader.logic.simple_trader import SimpleTrader
 from trader.print.models import AgentHistoryRow, FleetSummaryRow
 from trader.print.print import print_alert, print_as_table
 from trader.util.keys import read_api_key_from_disk, write_api_key_to_disk
@@ -65,7 +66,7 @@ class Trader:
         self.dao = DAO()
         if not disable_background_processes:
             thread = Thread(target=self.run_loop)
-            thread.setDaemon(True)
+            thread.daemon = True
             thread.start()
 
     def run_loop(self):
@@ -255,7 +256,7 @@ class Trader:
         sale_response = self.client.sell(
             call_sign=call_sign, symbol=symbol, units=units
         )
-        sale = cast(Sale, sale_response.data)
+        sale = cast(PurchaseOrSale, sale_response.data)
         print_as_table(
             title=f"Sale success - {call_sign} for {units} of {symbol}",
             data=[sale],
@@ -309,13 +310,17 @@ class Trader:
             title=f"Navigation - {call_sign}", data=[navigate], console=self.console
         )
 
-    def miner_trader_loop(self, call_sign: str, repeat: bool) -> None:
+    def miner_loop(self, call_sign: str, repeat: bool) -> None:
         if not self.api_key:
             raise TraderClientException("No API key present to proceed")
-        miner_trader = SimpleMinerTrader(
-            api_key=self.api_key, call_sign=call_sign, repeat=repeat
-        )
-        miner_trader.run_loop()
+        miner = SimpleMiner(api_key=self.api_key, call_sign=call_sign, repeat=repeat)
+        miner.run_loop()
+
+    def trader_loop(self, call_sign: str, repeat: bool) -> None:
+        if not self.api_key:
+            raise TraderClientException("No API key present to proceed")
+        trader = SimpleTrader(api_key=self.api_key, call_sign=call_sign, repeat=repeat)
+        trader.run_loop()
 
     def explorer_loop(self, call_sign: str, repeat: bool) -> None:
         if not self.api_key:

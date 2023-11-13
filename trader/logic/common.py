@@ -6,7 +6,7 @@ from loguru import logger
 
 from trader.client.ship import Ship
 from trader.dao.squads import Squad
-from trader.queue.action_queue import ActionQueue
+from trader.queues.action_queue import ActionQueue
 from trader.roles.common import Common as CommonRole
 
 DEFAULT_INTERNAL_LOOP_INTERVAL = 3
@@ -31,7 +31,7 @@ class Common(ABC):
     repeat: bool
     running_loop: bool = False
 
-    def compute_role_metrics(self):
+    def compute_role_metrics(self, **_):
         total_credits_earned = sum([role.credits_earned for role in self.roles])
         total_credits_spent = sum([role.credits_spent for role in self.roles])
         total_time_spent = sum(
@@ -42,7 +42,7 @@ class Common(ABC):
         )
         return (total_credits_earned, total_credits_spent, total_time_spent)
 
-    def log_audit_performance(self):
+    def log_audit_performance(self, **_):
         (
             total_credits_earned,
             total_credits_spent,
@@ -56,11 +56,11 @@ class Common(ABC):
             f"Total time spent: {total_time_spent}."
         )
 
-    def reset_audit_performance(self):
+    def reset_audit_performance(self, **_):
         for role in self.roles:
             role.reset_metrics()
 
-    def persist_audit_performance(self, event_name: str):
+    def persist_audit_performance(self, event_name: str, **_):
         (
             total_credits_earned,
             total_credits_spent,

@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 from loguru import logger
 
-from trader.client.cargo import SellCargoRequest
+from trader.client.cargo import CargoRequest
 from trader.client.navigation import NavigationRequestData, NavigationRequestPatch
 from trader.client.payload import (
     AgentPayload,
@@ -20,9 +20,9 @@ from trader.client.payload import (
     NavigationPayload,
     OrbitPayload,
     PayloadTypes,
+    PurchaseOrSalePayload,
     RefuelPayload,
     RegistrationResponsePayload,
-    SalePayload,
     ShipPayload,
     ShipPurchasePayload,
     ShipsPayload,
@@ -38,7 +38,7 @@ from trader.client.request import ClientRequest
 from trader.client.request_cache import Cache
 from trader.client.shipyard import ShipPurchaseRequestData
 from trader.exceptions import TraderClientException
-from trader.queue.request_queue import RequestQueue
+from trader.queues.request_queue import RequestQueue
 from trader.util.singleton import Singleton
 
 BASE_URL = "https://api.spacetraders.io/v2"
@@ -437,21 +437,30 @@ class Client:
         result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/market",
             method="GET",
-            check_cache=True,
-            cache_timeout=120,  # drop cache every 120 seconds or so
+            check_cache=False,
             data_type=MarketPayload,
         )
         return cast(MarketPayload, result)
 
-    def sell(self, call_sign: str, symbol: str, units: int) -> SalePayload:
+    def buy(self, call_sign: str, symbol: str, units: int) -> PurchaseOrSalePayload:
+        result = self.conduct_request(
+            url=f"{BASE_URL}/my/ships/{call_sign}/purchase",
+            method="POST",
+            data=CargoRequest(symbol=symbol, units=units).to_dict(),
+            check_cache=False,
+            data_type=PurchaseOrSalePayload,
+        )
+        return cast(PurchaseOrSalePayload, result)
+
+    def sell(self, call_sign: str, symbol: str, units: int) -> PurchaseOrSalePayload:
         result = self.conduct_request(
             url=f"{BASE_URL}/my/ships/{call_sign}/sell",
             method="POST",
-            data=SellCargoRequest(symbol=symbol, units=units).to_dict(),
+            data=CargoRequest(symbol=symbol, units=units).to_dict(),
             check_cache=False,
-            data_type=SalePayload,
+            data_type=PurchaseOrSalePayload,
         )
-        return cast(SalePayload, result)
+        return cast(PurchaseOrSalePayload, result)
 
     def shipyard(self, system_symbol: str, waypoint_symbol: str) -> ShipyardPayload:
         result = self.conduct_request(

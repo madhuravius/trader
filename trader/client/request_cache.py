@@ -31,7 +31,7 @@ class Cache(metaclass=Singleton):
         self.dao = DAO()
         if not disable_background_processes:
             thread = Thread(target=self.run_loop)
-            thread.setDaemon(True)
+            thread.daemon = True
             thread.start()
 
     def generate_cached_request_id(

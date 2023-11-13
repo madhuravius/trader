@@ -3,6 +3,7 @@ from typing import List
 from loguru import logger
 
 from trader.client.waypoint import Waypoint
+from trader.dao.waypoints import Waypoint as WaypointDAO
 from trader.roles.common import Common
 
 
@@ -44,7 +45,7 @@ class Explorer(Common):
         return waypoints
 
     def traverse_all_waypoints_and_check_markets_and_shipyards(
-        self, waypoints: List[Waypoint]
+        self, waypoints: List[Waypoint] | List[WaypointDAO]
     ) -> None:
         logger.info(f"{self.ship.symbol} is navigating {len(waypoints)} waypoints")
         for waypoint in waypoints:

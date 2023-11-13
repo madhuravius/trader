@@ -4,46 +4,48 @@ from typing import List
 
 from loguru import logger
 
-from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, ActionQueue, Common
-from trader.queues.action_queue import ActionQueueElement
-from trader.roles.explorer import Explorer
-from trader.roles.navigator.navigator import Navigator
+from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, Common
+from trader.queues.action_queue import ActionQueue, ActionQueueElement
+from trader.roles.harvester import Harvester
+from trader.roles.merchant.merchant import Merchant
 
 
-class SimpleExplorer(Common):
+class SimpleMiner(Common):
     """
-    Common catch-all set of behavior for probes that will explore and track market data.
+    Simple mining behavior for miners that will mine, then go to market and trade.
 
     Intended to purge queue on start and will begin from its current location.
     """
 
-    base_priority: int = 1
-    explorer: Explorer
-    repeat: bool
+    base_priority: int = 2
+    harvester: Harvester
+    merchant: Merchant
 
     def __init__(self, api_key: str, call_sign: str, repeat: bool = False):
         super().__init__()
-        self.explorer = Explorer(
+        self.harvester = Harvester(
             api_key=api_key, call_sign=call_sign, base_priority=self.base_priority
         )
-        self.navigator = Navigator(
+        self.merchant = Merchant(
             api_key=api_key, call_sign=call_sign, base_priority=self.base_priority
         )
-        self.roles = [self.explorer]
+        self.roles = [self.harvester, self.merchant]
         self.repeat = repeat
-        self.ship = self.explorer.ship
+        self.ship = self.harvester.ship
         self.action_queue = ActionQueue(
-            ship=self.ship, queue_name="simple-explorer", purge=True
+            ship=self.ship,
+            queue_name="simple-miner",
+            purge=True,  # purge on start to avoid functional orphans
         )
 
-    def find_optimal_path_and_traverse(self):
-        waypoints = self.explorer.find_relevant_paths_to_explore(
-            filters=["MARKETPLACE", "SHIPYARD"]
-        )
-        ordered_waypoints = self.navigator.shortest_traveling_salesman_route(waypoints)
-        self.explorer.traverse_all_waypoints_and_check_markets_and_shipyards(
-            waypoints=ordered_waypoints
-        )
+    def empty_extra_goods(self):
+        # if having goods already, should empty first if needed
+        self.merchant.reload_ship()
+        if self.ship.cargo.units > 0:
+            logger.info(
+                f"Found extra cargo on {self.ship.symbol}, emptying before starting loop"
+            )
+            self.merchant.sell_cargo()
 
     def run_loop(self):
         self.running_loop = True
@@ -58,17 +60,26 @@ class SimpleExplorer(Common):
                     logger.info(
                         f"Starting iteration {iteration} of loop for ship {self.ship.symbol}"
                     )
-
                 actions: List[ActionQueueElement] = [
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-explorer-loop.begin"},
+                        {"event_name": "simple-miner-loop.begin"},
                     ),
-                    (self.find_optimal_path_and_traverse, {}),
+                    (self.empty_extra_goods, {}),
+                    (
+                        self.persist_audit_performance,
+                        {"event_name": "simple-miner-loop.mine"},
+                    ),
+                    (self.harvester.mine, {}),
+                    (
+                        self.persist_audit_performance,
+                        {"event_name": "simple-miner-loop.sell"},
+                    ),
+                    (self.merchant.sell_cargo, {}),
                     (self.log_audit_performance, {}),
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-explorer-loop.finish"},
+                        {"event_name": "simple-miner-loop.finish"},
                     ),
                     (self.reset_audit_performance, {}),
                 ]
@@ -79,10 +90,9 @@ class SimpleExplorer(Common):
                     sleep(DEFAULT_INTERNAL_LOOP_INTERVAL)
             except KeyboardInterrupt:
                 os._exit(1)
-            except:
+            except Exception as e:
                 # just log the exception and loop, avoid the crash
-                logger.exception
-
+                logger.exception(e)
             if not self.repeat:
                 break
             iteration += 1

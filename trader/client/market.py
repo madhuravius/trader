@@ -60,7 +60,7 @@ class Market(JSONWizard):
 
 
 @dataclass
-class Sale(JSONWizard):
+class PurchaseOrSale(JSONWizard):
     agent: Agent
     cargo: Cargo
     transaction: Transaction

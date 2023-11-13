@@ -20,6 +20,6 @@ class Cargo(JSONWizard):
 
 
 @dataclass
-class SellCargoRequest(JSONWizard):
+class CargoRequest(JSONWizard):
     symbol: str
     units: int

@@ -12,7 +12,7 @@ from trader.client.cooldown import Cooldown
 from trader.client.extraction import Extraction
 from trader.client.faction import Faction
 from trader.client.fuel import Refuel
-from trader.client.market import Market, Sale
+from trader.client.market import Market, PurchaseOrSale
 from trader.client.navigation import Dock, NavigationAndFuel, Orbit
 from trader.client.payload import (
     AgentPayload,
@@ -26,9 +26,9 @@ from trader.client.payload import (
     MarketPayload,
     NavigationPayload,
     OrbitPayload,
+    PurchaseOrSalePayload,
     RefuelPayload,
     RegistrationResponsePayload,
-    SalePayload,
     ShipPayload,
     ShipPurchasePayload,
     ShipsPayload,
@@ -79,8 +79,8 @@ class MarketFactory(DataclassFactory[Market]):
     __model__ = Market
 
 
-class SaleFactory(DataclassFactory[Sale]):
-    __model__ = Sale
+class SaleFactory(DataclassFactory[PurchaseOrSale]):
+    __model__ = PurchaseOrSale
 
 
 class DockFactory(DataclassFactory[Dock]):
@@ -175,8 +175,8 @@ class RegistrationResponsePayloadFactory(DataclassFactory[RegistrationResponsePa
     __model__ = RegistrationResponsePayload
 
 
-class SalePayloadFactory(DataclassFactory[SalePayload]):
-    __model__ = SalePayload
+class PurchaseOrSalePayloadFactory(DataclassFactory[PurchaseOrSalePayload]):
+    __model__ = PurchaseOrSalePayload
 
 
 class ShipPayloadFactory(DataclassFactory[ShipPayload]):

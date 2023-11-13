@@ -278,11 +278,25 @@ def purchase_ship(waypoint_symbol: str, ship_type: str):
     default=False,
     help="Apply this flag if you want to run this logic loop repeatedly",
 )
-def miner_trader_loop(call_sign: str, repeat: bool):
+def miner_loop(call_sign: str, repeat: bool):
     """
-    Begins a naive mine, refuel, and sell loop for a given call sign. Ex: [yellow]cli.py miner-trader-loop --repeat true CALL_SIGN[/yellow]
+    Begins a naive mine, refuel, and sell loop for a given call sign. Ex: [yellow]cli.py miner-loop --repeat true CALL_SIGN[/yellow]
     """
-    trader.miner_trader_loop(call_sign=call_sign, repeat=repeat)
+    trader.miner_loop(call_sign=call_sign, repeat=repeat)
+
+
+@trader_command()
+@click.argument("call_sign")
+@click.option(
+    "--repeat",
+    default=False,
+    help="Apply this flag if you want to run this logic loop repeatedly",
+)
+def trader_loop(call_sign: str, repeat: bool):
+    """
+    Begins a naive buy and sell loop for a given call sign. Ex: [yellow]cli.py trader-loop --repeat true CALL_SIGN[/yellow]
+    """
+    trader.trader_loop(call_sign=call_sign, repeat=repeat)
 
 
 @trader_command()
@@ -361,7 +375,8 @@ cli.add_command(waypoints)
 
 # commands for testing more complex behaviors
 cli.add_command(explorer_loop)
-cli.add_command(miner_trader_loop)
+cli.add_command(miner_loop)
+cli.add_command(trader_loop)
 cli.add_command(fleet_loop)
 
 # commands for actions taken against the entire fleet or summary actions

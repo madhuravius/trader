@@ -1,10 +1,12 @@
 from typing import List
 
-from tsp_solver import greedy
-
 from trader.client.waypoint import Waypoint
+from trader.dao.waypoints import Waypoint as WaypointDAO
 from trader.roles.common import Common
-from trader.roles.navigator.geometry import generate_distance_matrix_for_waypoints
+from trader.roles.navigator.geometry import (
+    generate_graph_from_waypoints_all_connected,
+    generate_shortest_path_with_graph,
+)
 
 
 class Navigator(Common):
@@ -26,27 +28,19 @@ class Navigator(Common):
         Will attempt to generate a shortest distance between two locations while accounting for
         the need to refuel in between those two locations.
         """
+        graph = generate_graph_from_waypoints_all_connected(waypoints=waypoints)
         return []
 
     def shortest_traveling_salesman_route(
-        self, waypoints: List[Waypoint]
-    ) -> List[Waypoint]:
+        self, waypoints: List[Waypoint] | List[WaypointDAO]
+    ) -> List[Waypoint] | List[WaypointDAO]:
         """
         For a given list of waypoints, find an approximate shortest possible route among all provided waypoints.
         """
-        ship_waypoint_idx, distance_matrix = generate_distance_matrix_for_waypoints(
-            ship_waypoint_symbol=self.ship.nav.waypoint_symbol, waypoints=waypoints
+        graph = generate_graph_from_waypoints_all_connected(waypoints=waypoints)
+        return generate_shortest_path_with_graph(
+            starting_position=self.ship.nav.waypoint_symbol, graph=graph
         )
-
-        shortest_waypoint_path: List[Waypoint] = []
-        [
-            shortest_waypoint_path.append(waypoints[idx])
-            for idx in greedy.solve_tsp(
-                distance_matrix, endpoints=(ship_waypoint_idx, None)
-            )
-        ]
-
-        return shortest_waypoint_path
 
     def shortest_route_between_groups_of_waypoints(
         self, waypoint_group_1: List[Waypoint], waypoint_group_2: List[Waypoint]

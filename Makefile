@@ -18,7 +18,7 @@ install-build-lock: .venv
 .PHONY: install-build-lock
 
 black:
-	$(PYTHON_VENV) black ./trader
+	$(PYTHON_VENV) black ./trader ./notebooks
 .PHONY: black
 
 isort:
@@ -29,7 +29,7 @@ pretty: black isort
 .PHONY: pretty
 
 black_check:
-	$(PYTHON_VENV) black ./trader --check
+	$(PYTHON_VENV) black ./trader ./notebooks --check
 .PHONY: black_check
 
 isort_check:
@@ -76,6 +76,10 @@ clean:
 	rm -Rf dist || true
 	rm -Rf .venv || true
 .PHONY: clean
+
+jupyter:
+	$(PYTHON_VENV) jupyter lab
+.PHONY: jupyter
 
 gen-lockfiles: .venv
 	$(PYTHON_VENV) pip-compile \

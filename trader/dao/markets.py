@@ -206,6 +206,15 @@ def save_client_market(
                     system_symbol=system_symbol,
                 )
         if market.trade_goods:
+            existing_goods = session.exec(
+                select(MarketTradeGood).where(
+                    MarketTradeGood.waypoint_symbol == market.symbol
+                )
+            ).all()
+            for existing_good in existing_goods:
+                session.delete(existing_good)
+            session.commit()
+
             for market_trade_good in market.trade_goods:
                 session.add(
                     MarketTradeGood(
@@ -229,3 +238,15 @@ def get_market_trade_goods_by_system(
             MarketTradeGood.system_symbol == system_symbol
         )
         return session.exec(expression).all()
+
+
+def get_market_trade_good_by_waypoint(
+    engine: Engine, waypoint_symbol: str, good_symbol: str
+) -> MarketTradeGood:
+    with Session(engine) as session:
+        expression = (
+            select(MarketTradeGood)
+            .where(MarketTradeGood.waypoint_symbol == waypoint_symbol)
+            .where(MarketTradeGood.symbol == good_symbol)
+        )
+        return session.exec(expression).one()

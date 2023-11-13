@@ -69,7 +69,7 @@ class Queue:
             expression = (
                 select(QueueEntry)
                 .where(QueueEntry.queue_id == self.queue_id)
-                .order_by(col(QueueEntry.order).desc())
+                .order_by(col(QueueEntry.order).asc())
             )
             queue_entry = session.exec(expression.limit(1)).one()
             functional_return = None

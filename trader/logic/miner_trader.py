@@ -5,14 +5,19 @@ from typing import List
 from loguru import logger
 
 from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, Common
-from trader.queue.action_queue import ActionQueue, ActionQueueElement
+from trader.queues.action_queue import ActionQueue, ActionQueueElement
 from trader.roles.harvester import Harvester
-from trader.roles.merchant import Merchant
+from trader.roles.merchant.merchant import Merchant
 
 
-class SimpleMinerTrader(Common):
+class MinerTrader(Common):
     """
     Common catch-all set of behavior for miners that will mine, then go to market and trade.
+    It will trade if trading is better, and it will mine and trade if that is better with current
+    market prices.
+
+    This effectively behaves as SimpleMiner and SimpleTrader, doing which ever is more profitable
+    at the present time.
 
     Intended to purge queue on start and will begin from its current location.
     """
@@ -34,7 +39,7 @@ class SimpleMinerTrader(Common):
         self.ship = self.harvester.ship
         self.action_queue = ActionQueue(
             ship=self.ship,
-            queue_name="simple-miner-trader",
+            queue_name="miner-trader",
             purge=True,  # purge on start to avoid functional orphans
         )
 

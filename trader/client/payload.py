@@ -10,7 +10,7 @@ from trader.client.cooldown import Cooldown
 from trader.client.extraction import Extraction
 from trader.client.faction import Faction
 from trader.client.fuel import Refuel
-from trader.client.market import Market, Sale
+from trader.client.market import Market, PurchaseOrSale
 from trader.client.navigation import Dock, NavigationAndFuel, Orbit
 from trader.client.ship import Ship
 from trader.client.ship_purchase import ShipPurchase
@@ -145,8 +145,8 @@ class MarketPayload(CommonPayloadFields):
 
 
 @dataclass
-class SalePayload(CommonPayloadFields):
-    data: Optional[Sale] = None
+class PurchaseOrSalePayload(CommonPayloadFields):
+    data: Optional[PurchaseOrSale] = None
 
 
 @dataclass
@@ -172,7 +172,7 @@ PayloadTypes = (
     | NavigationPayload
     | OrbitPayload
     | RefuelPayload
-    | SalePayload
+    | PurchaseOrSalePayload
     | ShipsPayload
     | ShipPayload
     | ShipPurchasePayload

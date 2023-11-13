@@ -6,6 +6,7 @@ from typing import List, Optional
 from loguru import logger
 from sqlmodel import Session, select
 
+from trader.client.agent import Agent
 from trader.client.client import Client
 from trader.client.market import Exchange
 from trader.client.navigation import NavigationRequestPatch
@@ -22,9 +23,11 @@ from trader.exceptions import TraderClientException, TraderException
 from trader.roles.navigator.fuel import FUEL_COST_MULTIPLIER
 
 DEFAULT_ACTIONS_TIMEOUT = 5
+MINIMUM_FUEL_PERCENTAGE = 0.25
 
 
 class Common:
+    agent: Agent
     client: Client
     dao: DAO
     ship: Ship
@@ -40,14 +43,22 @@ class Common:
         self.client = Client(api_key=api_key, base_priority=self.base_priority)
         self.dao = DAO()
         self.time_started = datetime.now(UTC)
+        self._hydrate_ship_and_agent(call_sign=call_sign)
 
+    def _hydrate_ship_and_agent(self, call_sign: str):
         ship = self.client.ship(call_sign=call_sign).data
         if not ship:
             raise TraderClientException(
                 "Unable to instantiate common client as ship payload was empty!"
             )
-
         self.ship = ship
+
+        agent = self.client.agent().data
+        if not agent:
+            raise TraderClientException(
+                "Unable to instantiate common client as agent payload was empty!"
+            )
+        self.agent = agent
 
     def __navigate_to_waypoint(self, waypoint_symbol: str, system_symbol: str):
         """
@@ -116,7 +127,9 @@ class Common:
                 waypoints = raw_locations_from_client
         return waypoints
 
-    def find_closest_market_location_with_goods(self, goods: List[str] = []):
+    def find_closest_market_location_with_goods(
+        self, goods: List[str] = []
+    ) -> Waypoint:
         locations = {}
         # check if waypoints exist in db for system, if so we can just use that as there's no need to regrok
         waypoints = self.fetch_waypoints_possible_for_ship()
@@ -227,6 +240,9 @@ class Common:
         if ship:
             save_client_ships(engine=self.dao.engine, ships=[ship])
             self.ship = ship
+        agent = self.client.agent().data
+        if agent:
+            self.agent = agent
 
     def wait(self):
         attempts = 0
@@ -293,7 +309,7 @@ class Common:
             f"Ship {self.ship.symbol} refueling first and then navigating to waypoint {waypoint_symbol} and waiting"
         )
         if (
-            self.ship.fuel.current != self.ship.fuel.capacity
+            self.ship.fuel.current <= self.ship.fuel.capacity * MINIMUM_FUEL_PERCENTAGE
             and self.ship.frame.name != "Probe"
         ):
             # probes do not need to refuel
@@ -301,6 +317,9 @@ class Common:
             logger.info(
                 f"Ship {self.ship.symbol} completed refueling, heading to {waypoint_symbol} now"
             )
+        logger.info(
+            f"Ship {self.ship.symbol} completed refueling, now navigating to waypoint {waypoint_symbol} and waiting"
+        )
         # warning - ensure this is the only usage of navigate below, as we will want to always
         # refuel to avoid drifting (too slow)
         self.__navigate_to_waypoint(

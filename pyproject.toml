@@ -13,11 +13,15 @@ dependencies = [
     "dill==0.3.*",
     "httpx==0.25.*",
     "loguru==0.7.*",
+    "matplotlib==3.*",
+    "networkx==3.*",
     "pandas==2.*",
     "rich==13.*",
     "rich_click==1.*",
-    "sqlmodel==0.0.*",
-    "tsp_solver2==0.4.*"
+    "jupyterlab==4.*",
+    "scipy==1.*",
+    "scikit-learn==1.*",
+    "sqlmodel==0.0.*"
 ]
 
 [project.optional-dependencies]
@@ -25,7 +29,7 @@ build = [
     "pex==2.*"
 ]
 dev = [
-    "black==23.*",
+    "black[jupyter]==23.*",
     "ipython==8.*",
     "isort==5.*",
     "pex==2.*",

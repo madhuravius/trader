@@ -1,16 +1,18 @@
 from threading import Thread
 from time import sleep
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 from loguru import logger
 
 from trader.client.ship import Ship
-from trader.queue.queue import Queue
+from trader.queues.base_queue import Queue
 
 MAXIMUM_RETRIES_PER_ACTION = 3
 DEFAULT_QUEUE_POLLING_INTERVAL = 0.25
 
-ActionQueueElement = Tuple[Callable, Dict[str, Any]]
+ActionQueueParameters = Dict[str, int | float | str | None]
+ActionCallable = Callable[..., ActionQueueParameters | None]
+ActionQueueElement = Tuple[ActionCallable, ActionQueueParameters]
 
 
 class ActionQueue:
@@ -27,6 +29,7 @@ class ActionQueue:
     ship: Ship
     queue: Queue
     queue_id: str
+    outputs: ActionQueueParameters = {}
 
     def __init__(
         self,
@@ -42,13 +45,15 @@ class ActionQueue:
             self.queue.purge()
         if not disable_background_processes:
             thread = Thread(target=self.run_loop)
-            thread.setDaemon(True)
+            thread.daemon = True
             thread.start()
 
     def dequeue(self):
         (action, data) = self.queue.pop()
         if action:
-            self.execute(action=action, data=data)
+            output = self.execute(action=action, data=data)
+            if output:
+                self.outputs = {**self.outputs, **output}
         else:
             logger.warning(f"Got an empty request to execute on {self.queue_id}")
 
@@ -56,11 +61,11 @@ class ActionQueue:
         func, data = action
         self.queue.append(function=func, data=data)
 
-    def execute(self, action: Callable, data: Dict[str, Any]):
+    def execute(self, action: ActionCallable, data: ActionQueueParameters):
         attempt = 0
         while True:
             try:
-                return action(**data)
+                return action(**{**self.outputs, **data})
             except:
                 if attempt < MAXIMUM_RETRIES_PER_ACTION:
                     attempt += 1
@@ -71,6 +76,9 @@ class ActionQueue:
 
     def len(self):
         return self.queue.len()
+
+    def reset_outputs(self):
+        self.outputs = {}
 
     def run_loop(self):
         while True:

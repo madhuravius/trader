@@ -7,7 +7,7 @@ import httpx
 from loguru import logger
 
 from trader.client.request import ClientRequest
-from trader.queue.queue import Queue
+from trader.queues.base_queue import Queue
 from trader.util.singleton import Singleton
 
 MAXIMUM_REQUESTS_PER_SECOND = 1.5
@@ -38,7 +38,7 @@ class RequestQueue(metaclass=Singleton):
         self.request_queue_instance = client_id
         if not disable_background_processes:
             thread = Thread(target=self.run_loop)
-            thread.setDaemon(True)
+            thread.daemon = True
             thread.start()
 
     def get_request_debug_info(
