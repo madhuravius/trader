@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from math import dist
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Literal, Optional, cast
 
 import pandas as pd
 from dataclass_wizard import JSONWizard
@@ -10,6 +10,8 @@ from trader.dao.waypoints import Waypoint
 from trader.roles.navigator.geometry import (
     generate_graph_from_waypoints_means_shift_clustering,
 )
+
+MINIMUM_PROFIT_TO_TRADE = 0.05
 
 
 @dataclass
@@ -55,6 +57,7 @@ def generate_arbitrage_opportunities(
     market_trade_goods: List[MarketTradeGood],
     waypoints: List[Waypoint],
     limit: int = 10,
+    sort_field: Literal["profit", "percent_profit"] = "profit",
 ) -> List[ArbitrageOpportunity]:
     """
     This will, for a given list of trade goods across multiple waypoints,
@@ -92,9 +95,15 @@ def generate_arbitrage_opportunities(
     arbitrage_data["percent_profit"] = arbitrage_data["profit"] / arbitrage_data[
         "purchase_price"
     ].astype(int)
-    most_profitable_trades = arbitrage_data.sort_values(
-        "percent_profit", ascending=False
-    )
+
+    # Exclude non-profitable trades by profit margin (they could swing and end up
+    # leaving us bagholders)
+    arbitrage_data["percent_profit"] = arbitrage_data[
+        arbitrage_data["percent_profit"] > MINIMUM_PROFIT_TO_TRADE
+    ]["percent_profit"]
+    arbitrage_data.dropna()
+
+    most_profitable_trades = arbitrage_data.sort_values(sort_field, ascending=False)
     arbitrage_opportunities = [
         ArbitrageOpportunitySerializable.from_dict(trade.to_dict())
         for _, trade in most_profitable_trades.head(limit).iterrows()

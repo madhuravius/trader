@@ -34,7 +34,7 @@ from trader.dao.ships import get_ship, get_ship_events, get_ships, save_client_s
 from trader.dao.shipyards import save_client_shipyard
 from trader.dao.waypoints import save_client_waypoints
 from trader.exceptions import TraderClientException
-from trader.fleet import Fleet
+from trader.fleet.fleet import Fleet
 from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner import SimpleMiner
 from trader.logic.simple_trader import SimpleTrader

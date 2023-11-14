@@ -77,7 +77,7 @@ class ActionQueue:
     def len(self):
         return self.queue.len()
 
-    def reset_outputs(self):
+    def reset_outputs(self, **_):
         self.outputs = {}
 
     def run_loop(self):

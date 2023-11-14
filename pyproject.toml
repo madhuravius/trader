@@ -16,11 +16,13 @@ dependencies = [
     "matplotlib==3.*",
     "networkx==3.*",
     "pandas==2.*",
+    "pip>=23",
     "rich==13.*",
     "rich_click==1.*",
     "jupyterlab==4.*",
     "scipy==1.*",
     "scikit-learn==1.*",
+    "setuptools>=68",
     "sqlmodel==0.0.*"
 ]
 

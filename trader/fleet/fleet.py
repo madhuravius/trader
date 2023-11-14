@@ -4,9 +4,9 @@ from typing import List
 
 from trader.dao.ships import Ship
 from trader.logic.simple_explorer import SimpleExplorer
-from trader.logic.simple_miner import SimpleMiner
+from trader.logic.simple_trader import SimpleTrader
 
-MAP_OF_SHIP_FRAME_TO_LOGIC = {"Frigate": SimpleMiner, "Probe": SimpleExplorer}
+MAP_OF_SHIP_FRAME_TO_LOGIC = {"Frigate": SimpleTrader, "Probe": SimpleExplorer}
 MAXIMUM_PROBES_PER_SYSTEM = 5
 
 

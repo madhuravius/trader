@@ -82,14 +82,17 @@ jupyter:
 .PHONY: jupyter
 
 gen-lockfiles: .venv
+	# allow-unsafe required for build tools apparently: https://stackoverflow.com/a/58864335
 	$(PYTHON_VENV) pip-compile \
 		--resolver=backtracking \
 		--generate-hashes \
+		--allow-unsafe \
 		--extra=build \
 		-o requirements-build.txt -v
 	$(PYTHON_VENV) pip-compile \
 		--resolver=backtracking \
 		--generate-hashes \
+		--allow-unsafe \
 		--extra=dev \
 		-o requirements-dev.txt -v
 .PHONY: gen-lockfiles

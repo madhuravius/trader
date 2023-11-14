@@ -49,7 +49,9 @@ class Merchant(Common):
         """
         Simple utility function to jump to a specific location and buy cargo
         """
-        logger.info(f"Ship {self.ship.symbol} starting to navigate to makes purchases")
+        logger.info(
+            f"Ship {self.ship.symbol} starting to navigate to makes purchases of {good_symbol} ({units} units)"
+        )
         self.refuel_and_navigate_to_waypoint(
             waypoint_symbol=waypoint_symbol,
             system_symbol=system_symbol,
@@ -60,7 +62,12 @@ class Merchant(Common):
             waypoint_symbol=waypoint_symbol,
             system_symbol=system_symbol,
         )
-        if not units:
+        if units is None:
+            trade_good_at_location = get_market_trade_good_by_waypoint(
+                engine=self.dao.engine,
+                waypoint_symbol=waypoint_symbol,
+                good_symbol=good_symbol,
+            )
             maximum_amount_to_buy = (
                 MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE * self.agent.credits
             )
@@ -69,7 +76,12 @@ class Merchant(Common):
                 waypoint_symbol=waypoint_symbol,
                 good_symbol=good_symbol,
             ).purchase_price
-            units = int(maximum_amount_to_buy / cost_per_good)
+            units = min(
+                [
+                    int(maximum_amount_to_buy / cost_per_good),
+                    trade_good_at_location.trade_volume,
+                ]
+            )
 
         # TODO - persist units bought into map, so we know how much to sell
 
