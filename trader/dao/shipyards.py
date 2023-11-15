@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, select
@@ -113,3 +113,15 @@ def save_client_shipyard(
                     system_symbol=system_symbol,
                 )
         session.commit()
+
+
+def get_shipyard_ships_by_waypoint(
+    engine: Engine, waypoint_symbol: str, system_symbol: str
+) -> List[ShipyardShip]:
+    with Session(engine) as session:
+        expression = (
+            select(ShipyardShip)
+            .where(ShipyardShip.system_symbol == system_symbol)
+            .where(ShipyardShip.waypoint_symbol == waypoint_symbol)
+        )
+        return session.exec(expression).all()

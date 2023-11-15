@@ -3,6 +3,7 @@ from typing import List
 from loguru import logger
 
 from trader.client.waypoint import Waypoint
+from trader.dao.shipyards import get_shipyard_ships_by_waypoint
 from trader.dao.waypoints import Waypoint as WaypointDAO
 from trader.roles.common import Common
 
@@ -64,5 +65,12 @@ class Explorer(Common):
                     system_symbol=waypoint.system_symbol,
                     waypoint_symbol=waypoint.symbol,
                 )
+                # if in a shipyard, and the fleet needs more ships, buy the one we want!
+                possible_ships_for_sale = get_shipyard_ships_by_waypoint(
+                    engine=self.dao.engine,
+                    system_symbol=waypoint.system_symbol,
+                    waypoint_symbol=waypoint.symbol,
+                )
+                # pass these ships in to parent, to determine if purchase is needed
 
             self.client.orbit(call_sign=self.ship.symbol)

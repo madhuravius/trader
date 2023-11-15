@@ -12,6 +12,7 @@ class Ship(SQLModel, table=True):
     call_sign: str
     faction: str
     frame_name: str
+    registration_role: str
     system_symbol: str
     waypoint_symbol: str
 
@@ -40,6 +41,7 @@ def save_client_ships(engine: Engine, ships: List[ShipClient]) -> None:
                         call_sign=ship.symbol,
                         faction=ship.registration.faction_symbol,
                         frame_name=ship.frame.name,
+                        registration_role=ship.registration.role,
                         system_symbol=ship.nav.system_symbol,
                         waypoint_symbol=ship.nav.waypoint_symbol,
                     )

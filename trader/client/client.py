@@ -466,8 +466,7 @@ class Client:
         result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/shipyard",
             method="GET",
-            check_cache=True,
-            cache_timeout=120,  # drop cache every 120 seconds or so
+            check_cache=False,
             data_type=ShipyardPayload,
         )
         return cast(ShipyardPayload, result)

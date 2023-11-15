@@ -187,8 +187,8 @@ class Common:
                 [waypoint.x, waypoint.y],
                 [self.ship.nav.route.destination.x, self.ship.nav.route.destination.y],
             )
-            fuel_cost = FUEL_COST_MULTIPLIER[self.ship.nav.flight_mode](int(distance))
             flight_mode_to_use = "CRUISE"
+            fuel_cost = FUEL_COST_MULTIPLIER[flight_mode_to_use](int(distance))
             if (
                 fuel_cost > 0.8 * self.ship.fuel.current
             ):  # be a little conservative about saved fuel

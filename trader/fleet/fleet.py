@@ -4,9 +4,14 @@ from typing import List
 
 from trader.dao.ships import Ship
 from trader.logic.simple_explorer import SimpleExplorer
+from trader.logic.simple_miner import SimpleMiner
 from trader.logic.simple_trader import SimpleTrader
 
-MAP_OF_SHIP_FRAME_TO_LOGIC = {"Frigate": SimpleTrader, "Probe": SimpleExplorer}
+MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC = {
+    "COMMAND": SimpleTrader,
+    "SATELLITE": SimpleExplorer,
+    "EXCAVATOR": SimpleMiner,
+}
 MAXIMUM_PROBES_PER_SYSTEM = 5
 
 
@@ -27,7 +32,7 @@ class Fleet:
 
     def run_loop(self):
         for ship in self.ships:
-            ship_loop = MAP_OF_SHIP_FRAME_TO_LOGIC[ship.frame_name](
+            ship_loop = MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC[ship.registration_role](
                 api_key=self.api_key, call_sign=ship.call_sign, repeat=True
             )
             thread = Thread(target=ship_loop.run_loop)
