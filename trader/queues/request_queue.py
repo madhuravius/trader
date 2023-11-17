@@ -118,7 +118,7 @@ class RequestQueue(metaclass=Singleton):
         while True:
             try:
                 return request_function(**request_arguments)
-            except (httpx.ReadTimeout, httpx.ConnectError) as e:
+            except (httpx.ReadTimeout, httpx.ConnectError, httpx.ConnectTimeout) as e:
                 if attempt < MAXIMUM_RETRIES_PER_REQUEST:
                     attempt += 1
                     time_to_wait = 5 * (2**attempt)

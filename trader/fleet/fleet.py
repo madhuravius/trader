@@ -34,9 +34,7 @@ class Fleet:
 
     def run_loop(self):
         for ship in self.ships:
-            ship_logic = MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC.get(
-                ship.registration_role
-            )
+            ship_logic = MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC.get(ship.registration_role)
             if ship_logic:
                 ship_loop = ship_logic(
                     api_key=self.api_key, call_sign=ship.call_sign, repeat=True

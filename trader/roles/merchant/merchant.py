@@ -67,38 +67,46 @@ class Merchant(Common):
             waypoint_symbol=waypoint_symbol,
             good_symbol=good_symbol,
         )
+        cargo_space_left = self.ship.cargo.capacity - self.ship.cargo.units
         if units is None:
-            maximum_amount_to_buy = min(
-                [
-                    MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE * self.agent.credits,
-                    self.ship.cargo.capacity,
-                ]
+            maximum_amount_to_buy = (
+                MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE * self.agent.credits
             )
             cost_per_good: int = get_market_trade_good_by_waypoint(
                 engine=self.dao.engine,
                 waypoint_symbol=waypoint_symbol,
                 good_symbol=good_symbol,
             ).purchase_price
-            units = int(maximum_amount_to_buy / cost_per_good)
+            units = min(
+                [
+                    int(maximum_amount_to_buy / cost_per_good),
+                    cargo_space_left,
+                ]
+            )
 
         # TODO - persist units bought into map, so we know how much to sell
         good_maximum_volume = trade_good_at_location.trade_volume
         purchased = 0
 
         while purchased < units:
+            number_to_buy = good_maximum_volume
+            if good_maximum_volume > cargo_space_left:
+                # ex, 5 to buy due ot space constraint, but trade volume is 10, we must buy 5
+                number_to_buy = cargo_space_left
+
             logger.info(
                 f"Ship {self.ship.symbol} buying {good_maximum_volume} ({purchased} of {units}) units of {good_symbol}"
             )
             buy_response = self.client.buy(
                 call_sign=self.ship.symbol,
                 symbol=good_symbol,
-                units=good_maximum_volume,
+                units=number_to_buy,
             )
             if buy_response.data:
                 self.add_to_credits_spent(
                     credits=buy_response.data.transaction.total_price
                 )
-            purchased += good_maximum_volume
+            purchased += number_to_buy
 
     def sell_cargo(
         self,
@@ -167,7 +175,7 @@ class Merchant(Common):
                         ]
                     )
                     logger.info(
-                        f"Ship {self.ship.symbol} selling {units} units ({current_units} of {inventory.units}) of {inventory.symbol}"
+                        f"Ship {self.ship.symbol} selling {units} units ({inventory.units - current_units} of {current_units})"
                     )
                     sale_response = self.client.sell(
                         call_sign=self.ship.symbol,

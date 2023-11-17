@@ -4,7 +4,10 @@ from typing import List, cast
 
 from loguru import logger
 
-from trader.dao.markets import get_market_trade_goods_by_system
+from trader.dao.markets import (
+    get_market_trade_good_by_waypoint,
+    get_market_trade_goods_by_system,
+)
 from trader.dao.waypoints import get_waypoints_by_system_symbol
 from trader.exceptions import TraderException
 from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, Common
@@ -15,6 +18,9 @@ from trader.queues.action_queue import (
 )
 from trader.roles.merchant.finder import find_most_profitable_trade_in_system
 from trader.roles.merchant.merchant import MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE, Merchant
+from trader.roles.navigator.geometry import (
+    generate_graph_from_waypoints_means_shift_clustering,
+)
 
 
 class SimpleTrader(Common):
@@ -48,7 +54,39 @@ class SimpleTrader(Common):
             logger.info(
                 f"Found extra cargo on {self.ship.symbol}, emptying before starting loop"
             )
-            self.merchant.sell_cargo(liquidate_inventory=True)
+            system_waypoints = get_waypoints_by_system_symbol(
+                engine=self.merchant.dao.engine,
+                system_symbol=self.merchant.ship.nav.system_symbol,
+            )
+            graph = generate_graph_from_waypoints_means_shift_clustering(
+                waypoints=system_waypoints
+            )
+            waypoints = next(
+                filter(
+                    lambda cluster: self.ship.nav.waypoint_symbol
+                    in cluster[1]["cluster_waypoints_symbols"],
+                    list(graph.nodes(data=True)),
+                )
+            )[1]["cluster_waypoints"]
+
+            trade_good = get_market_trade_good_by_waypoint(
+                engine=self.merchant.dao.engine,
+                waypoint_symbol=self.merchant.ship.nav.waypoint_symbol,
+                good_symbol=self.ship.cargo.inventory[0].symbol,
+            )
+            most_profitable_trade = find_most_profitable_trade_in_system(
+                maximum_purchase_price=MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE
+                * self.merchant.agent.credits,
+                trade_goods=[trade_good],
+                waypoints=waypoints,
+                prefer_within_cluster=True,
+            )
+            if most_profitable_trade:
+                self.merchant.sell_cargo(
+                    waypoint_symbol=most_profitable_trade.purchase_waypoint.symbol,
+                    system_symbol=most_profitable_trade.purchase_waypoint.system_symbol,
+                    liquidate_inventory=True,
+                )
 
     def begin_trading_cycle(self) -> ActionQueueParameters:
         trading_cycle_data: ActionQueueParameters = {}
@@ -82,6 +120,7 @@ class SimpleTrader(Common):
             ] = most_profitable_trade.sell_waypoint.system_symbol
             trading_cycle_data["good_symbol"] = most_profitable_trade.trade_good_symbol
         else:
+            logger.warning("Unable to find profitable trade!")
             raise TraderException("Unable to find profitable trade to continue")
 
         return trading_cycle_data

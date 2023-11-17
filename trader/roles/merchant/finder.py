@@ -158,6 +158,9 @@ def find_profitable_trades_in_system(
                 arbitrage_opportunity.sell_waypoint.y,
             ],
         )
+        if distance == 0.0:
+            continue
+
         profit_to_distance_ratio = cast(int, arbitrage_opportunity.profit) / distance
 
         if prefer_within_cluster:
