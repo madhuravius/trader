@@ -95,7 +95,7 @@ class Merchant(Common):
                 number_to_buy = cargo_space_left
 
             logger.info(
-                f"Ship {self.ship.symbol} buying {good_maximum_volume} ({purchased} of {units}) units of {good_symbol}"
+                f"Ship {self.ship.symbol} buying {good_maximum_volume} ({purchased + number_to_buy} of {units}) units of {good_symbol}"
             )
             buy_response = self.client.buy(
                 call_sign=self.ship.symbol,
@@ -106,6 +106,7 @@ class Merchant(Common):
                 self.add_to_credits_spent(
                     credits=buy_response.data.transaction.total_price
                 )
+            cargo_space_left -= number_to_buy
             purchased += number_to_buy
 
     def sell_cargo(
@@ -128,6 +129,7 @@ class Merchant(Common):
                 "failed to provide which good to sell and the number of units"
             )
 
+        self.reload_ship()
         if liquidate_inventory and not self.ship.cargo.units:
             # nothing to do, just returning
             logger.warning(
@@ -170,6 +172,7 @@ class Merchant(Common):
                 while current_units > 0:
                     units = min(
                         [
+                            current_units,
                             inventory.units,
                             trade_good_at_location.trade_volume,
                         ]
