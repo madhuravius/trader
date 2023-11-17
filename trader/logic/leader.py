@@ -10,7 +10,7 @@ from trader.roles.harvester import Harvester
 from trader.roles.merchant.merchant import Merchant
 
 
-class MinerTrader(Common):
+class Leader(Common):
     """
     Common catch-all set of behavior for miners that will mine, then go to market and trade.
     It will trade if trading is better, and it will mine and trade if that is better with current
@@ -39,7 +39,7 @@ class MinerTrader(Common):
         self.ship = self.harvester.ship
         self.action_queue = ActionQueue(
             ship=self.ship,
-            queue_name="miner-trader",
+            queue_name="leader",
             purge=True,  # purge on start to avoid functional orphans
         )
 
@@ -73,23 +73,23 @@ class MinerTrader(Common):
                 actions: List[ActionQueueElement] = [
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-miner-trader-loop.begin"},
+                        {"event_name": "leader-loop.begin"},
                     ),
                     (self.empty_extra_goods, {}),
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-miner-trader-loop.mine"},
+                        {"event_name": "leader-loop.mine"},
                     ),
                     (self.harvester.mine, {}),
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-miner-trader-loop.sell"},
+                        {"event_name": "leader-loop.sell"},
                     ),
                     (self.merchant.sell_cargo, {}),
                     (self.log_audit_performance, {}),
                     (
                         self.persist_audit_performance,
-                        {"event_name": "simple-miner-trader-loop.finish"},
+                        {"event_name": "leader-loop.finish"},
                     ),
                     (self.reset_audit_performance, {}),
                 ]

@@ -252,6 +252,15 @@ class Trader:
             console=self.console,
         )
 
+    def buy(self, call_sign: str, symbol: str, units: int) -> None:
+        sale_response = self.client.buy(call_sign=call_sign, symbol=symbol, units=units)
+        purchase = cast(PurchaseOrSale, sale_response.data)
+        print_as_table(
+            title=f"Buy success - {call_sign} for {units} of {symbol}",
+            data=[purchase],
+            console=self.console,
+        )
+
     def sell(self, call_sign: str, symbol: str, units: int) -> None:
         sale_response = self.client.sell(
             call_sign=call_sign, symbol=symbol, units=units

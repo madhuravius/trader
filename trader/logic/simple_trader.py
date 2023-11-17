@@ -48,7 +48,7 @@ class SimpleTrader(Common):
             logger.info(
                 f"Found extra cargo on {self.ship.symbol}, emptying before starting loop"
             )
-            self.merchant.sell_cargo()
+            self.merchant.sell_cargo(liquidate_inventory=True)
 
     def begin_trading_cycle(self) -> ActionQueueParameters:
         trading_cycle_data: ActionQueueParameters = {}

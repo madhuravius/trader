@@ -62,37 +62,43 @@ class Merchant(Common):
             waypoint_symbol=waypoint_symbol,
             system_symbol=system_symbol,
         )
+        trade_good_at_location = get_market_trade_good_by_waypoint(
+            engine=self.dao.engine,
+            waypoint_symbol=waypoint_symbol,
+            good_symbol=good_symbol,
+        )
         if units is None:
-            trade_good_at_location = get_market_trade_good_by_waypoint(
-                engine=self.dao.engine,
-                waypoint_symbol=waypoint_symbol,
-                good_symbol=good_symbol,
-            )
-            maximum_amount_to_buy = (
-                MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE * self.agent.credits
+            maximum_amount_to_buy = min(
+                [
+                    MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE * self.agent.credits,
+                    self.ship.cargo.capacity,
+                ]
             )
             cost_per_good: int = get_market_trade_good_by_waypoint(
                 engine=self.dao.engine,
                 waypoint_symbol=waypoint_symbol,
                 good_symbol=good_symbol,
             ).purchase_price
-            units = min(
-                [
-                    int(maximum_amount_to_buy / cost_per_good),
-                    trade_good_at_location.trade_volume,
-                ]
-            )
+            units = int(maximum_amount_to_buy / cost_per_good)
 
         # TODO - persist units bought into map, so we know how much to sell
+        good_maximum_volume = trade_good_at_location.trade_volume
+        purchased = 0
 
-        logger.info(f"Ship {self.ship.symbol} buying {units} units of {good_symbol}")
-        buy_response = self.client.buy(
-            call_sign=self.ship.symbol,
-            symbol=good_symbol,
-            units=units,
-        )
-        if buy_response.data:
-            self.add_to_credits_spent(credits=buy_response.data.transaction.total_price)
+        while purchased < units:
+            logger.info(
+                f"Ship {self.ship.symbol} buying {good_maximum_volume} ({purchased} of {units}) units of {good_symbol}"
+            )
+            buy_response = self.client.buy(
+                call_sign=self.ship.symbol,
+                symbol=good_symbol,
+                units=good_maximum_volume,
+            )
+            if buy_response.data:
+                self.add_to_credits_spent(
+                    credits=buy_response.data.transaction.total_price
+                )
+            purchased += good_maximum_volume
 
     def sell_cargo(
         self,
@@ -114,7 +120,17 @@ class Merchant(Common):
                 "failed to provide which good to sell and the number of units"
             )
 
+        if liquidate_inventory and not self.ship.cargo.units:
+            # nothing to do, just returning
+            logger.warning(
+                f"Ship {self.ship.symbol} has no cargo to sell! Empty inventory"
+            )
+            return
+
         logger.info(f"Ship {self.ship.symbol} starting to navigate to makes sales")
+        # TODO - try to sell as much as possible and construct a group route in case one
+        #        location does not accept all goods
+
         goods_to_sell = [inventory.symbol for inventory in self.ship.cargo.inventory]
 
         if waypoint_symbol is None or system_symbol is None:
@@ -137,15 +153,29 @@ class Merchant(Common):
 
         if liquidate_inventory:
             for inventory in self.ship.cargo.inventory:
-                logger.info(
-                    f"Ship {self.ship.symbol} selling {inventory.units} units of {inventory.symbol}"
+                trade_good_at_location = get_market_trade_good_by_waypoint(
+                    engine=self.dao.engine,
+                    waypoint_symbol=waypoint_symbol,
+                    good_symbol=inventory.symbol,
                 )
-                sale_response = self.client.sell(
-                    call_sign=self.ship.symbol,
-                    symbol=inventory.symbol,
-                    units=inventory.units,
-                )
-                if sale_response.data:
-                    self.add_to_credits_earned(
-                        credits=sale_response.data.transaction.total_price
+                current_units = inventory.units
+                while current_units > 0:
+                    units = min(
+                        [
+                            inventory.units,
+                            trade_good_at_location.trade_volume,
+                        ]
                     )
+                    logger.info(
+                        f"Ship {self.ship.symbol} selling {units} units ({current_units} of {inventory.units}) of {inventory.symbol}"
+                    )
+                    sale_response = self.client.sell(
+                        call_sign=self.ship.symbol,
+                        symbol=inventory.symbol,
+                        units=units,
+                    )
+                    current_units -= units
+                    if sale_response.data:
+                        self.add_to_credits_earned(
+                            credits=sale_response.data.transaction.total_price
+                        )

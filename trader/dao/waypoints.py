@@ -93,6 +93,8 @@ def get_waypoints_by_system_symbol(
     with Session(engine) as session:
         expression = (
             select(Waypoint)
+            .join(WaypointTrait)
+            .where(Waypoint.id == WaypointTrait.waypoint_id)
             .where(Waypoint.system_symbol == system_symbol)
             .options(selectinload(Waypoint.traits))
         )

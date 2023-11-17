@@ -119,7 +119,7 @@ class Common:
                 self.ship.nav.system_symbol
             ).data
             if not raw_locations_from_client:
-                raise TraderException("No waypoints found to find locations to mine!")
+                raise TraderException("No waypoints found!")
             else:
                 save_client_waypoints(
                     engine=self.dao.engine, waypoints=raw_locations_from_client

@@ -3,12 +3,14 @@ from time import sleep
 from typing import List
 
 from trader.dao.ships import Ship
+from trader.logic.leader import Leader
 from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner import SimpleMiner
 from trader.logic.simple_trader import SimpleTrader
 
 MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC = {
-    "COMMAND": SimpleTrader,
+    "COMMAND": Leader,
+    "HAULER": SimpleTrader,
     "SATELLITE": SimpleExplorer,
     "EXCAVATOR": SimpleMiner,
 }
@@ -32,11 +34,15 @@ class Fleet:
 
     def run_loop(self):
         for ship in self.ships:
-            ship_loop = MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC[ship.registration_role](
-                api_key=self.api_key, call_sign=ship.call_sign, repeat=True
+            ship_logic = MAP_OF_SHIP_REGISTRATION_ROLE_TO_LOGIC.get(
+                ship.registration_role
             )
-            thread = Thread(target=ship_loop.run_loop)
-            thread.daemon = True
-            thread.start()
+            if ship_logic:
+                ship_loop = ship_logic(
+                    api_key=self.api_key, call_sign=ship.call_sign, repeat=True
+                )
+                thread = Thread(target=ship_loop.run_loop)
+                thread.daemon = True
+                thread.start()
         while True:
             sleep(30)

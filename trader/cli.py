@@ -254,6 +254,17 @@ def set_flight_mode(call_sign: str, flight_mode: FlightModes):
 @click.argument("call_sign")
 @click.argument("symbol")
 @click.argument("units")
+def buy(call_sign: str, symbol: str, units: int):
+    """
+    Attempts to conduct a purchase for a given ship's call sign, and will sell X units (provided) of Y symbols (provided). Ex: [yellow]cli.py buy CALL_SIGN SYMBOL UNITS[/yellow]
+    """
+    trader.buy(call_sign=call_sign, symbol=symbol, units=units)
+
+
+@trader_command()
+@click.argument("call_sign")
+@click.argument("symbol")
+@click.argument("units")
 def sell(call_sign: str, symbol: str, units: int):
     """
     Attempts to conduct a sale for a given ship's call sign, and will sell X units (provided) of Y symbols (provided). Ex: [yellow]cli.py sell CALL_SIGN SYMBOL UNITS[/yellow]
@@ -352,6 +363,7 @@ cli.add_command(status)
 # basic cli commands
 cli.add_command(agent)
 cli.add_command(agents)
+cli.add_command(buy)
 cli.add_command(cargo)
 cli.add_command(contracts)
 cli.add_command(cooldown)

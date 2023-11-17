@@ -75,7 +75,8 @@ class Queue:
             functional_return = None
             if queue_entry.id:
                 functional_return = self.functions.get(queue_entry.id)
-                del self.functions[queue_entry.id]
+                if functional_return:
+                    del self.functions[queue_entry.id]
             logger.debug(
                 f"Deleting key from queue entry id: {queue_entry.id} on queue: {self.queue_id}"
             )

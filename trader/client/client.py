@@ -437,7 +437,8 @@ class Client:
         result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/market",
             method="GET",
-            check_cache=False,
+            check_cache=True,
+            cache_timeout=30,  # drop cache every 120 seconds or so
             data_type=MarketPayload,
         )
         return cast(MarketPayload, result)
@@ -466,7 +467,8 @@ class Client:
         result = self.conduct_request(
             url=f"{BASE_URL}/systems/{system_symbol}/waypoints/{waypoint_symbol}/shipyard",
             method="GET",
-            check_cache=False,
+            check_cache=True,
+            cache_timeout=30,  # drop cache every 120 seconds or so
             data_type=ShipyardPayload,
         )
         return cast(ShipyardPayload, result)

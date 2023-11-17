@@ -80,5 +80,5 @@ def get_ship_events(
                 .order_by(col(ShipEvent.created_at).desc())
                 .limit(limit)
             )
-            ship_events = session.exec(ship_event_statement).all()
+            ship_events.append(*session.exec(ship_event_statement).all())
     return ship_events
