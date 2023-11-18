@@ -100,3 +100,11 @@ gen-lockfiles: .venv
 build:
 	docker build -f Dockerfile -t trader . 
 .PHONY: build
+
+start-docs:
+	docker run \
+		--rm \
+		-it \
+		-p 8000:8000 \
+		-v ${PWD}:/docs squidfunk/mkdocs-material
+.PHONY: start-docs
