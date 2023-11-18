@@ -14,11 +14,13 @@ class AgentHistory(SQLModel, table=True):
     credits: int
 
 
-def get_agent_histories(engine: Engine) -> List[AgentHistory]:
+def get_agent_histories(engine: Engine, limit: int = 20) -> List[AgentHistory]:
     agent_histories: List[AgentHistory] = []
     with Session(engine) as session:
         agent_history_statement = (
-            select(AgentHistory).order_by(col(AgentHistory.created_at).desc()).limit(20)
+            select(AgentHistory)
+            .order_by(col(AgentHistory.created_at).desc())
+            .limit(limit)
         )
         agent_histories = session.exec(agent_history_statement).all()
     return agent_histories

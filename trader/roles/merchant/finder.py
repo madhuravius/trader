@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from math import dist
 from typing import Any, Dict, List, Literal, Optional, cast
 
+import networkx as nx
 import pandas as pd
 from dataclass_wizard import JSONWizard
 
@@ -159,30 +160,42 @@ def find_profitable_trades_in_system(
             ],
         )
         if distance == 0.0:
-            continue
+            # deprioritize 0 distances as much as possible. This happens usually when
+            # comparing distances without a true starting location (and self comparison happens)
+            # There are distances greater than 250, but 250 is a moderately large distance
+            distance = 250.0
 
         profit_to_distance_ratio = cast(int, arbitrage_opportunity.profit) / distance
 
         if prefer_within_cluster:
-            sell_wp_cluster = next(
-                filter(
-                    lambda cluster: arbitrage_opportunity.sell_waypoint.symbol
-                    in cluster[1]["cluster_waypoints_symbols"],
-                    list(graph.nodes(data=True)),
-                )
+            sell_wp_cluster = find_waypoint_by_cluster(
+                graph=graph, waypoint_symbol=arbitrage_opportunity.sell_waypoint.symbol
             )
-            buy_wp_cluster = next(
-                filter(
-                    lambda cluster: arbitrage_opportunity.purchase_waypoint.symbol
-                    in cluster[1]["cluster_waypoints_symbols"],
-                    list(graph.nodes(data=True)),
-                )
+            buy_wp_cluster = find_waypoint_by_cluster(
+                graph=graph,
+                waypoint_symbol=arbitrage_opportunity.purchase_waypoint.symbol,
             )
             if sell_wp_cluster[0] == buy_wp_cluster[0]:
                 profit_to_opportunity[profit_to_distance_ratio] = arbitrage_opportunity
         else:
             profit_to_opportunity[profit_to_distance_ratio] = arbitrage_opportunity
     return profit_to_opportunity
+
+
+def find_waypoint_by_cluster(graph: nx.DiGraph, waypoint_symbol: str):
+    """
+    Should return a cluster (another graph) based on a parent graph of nodes
+    that contains clusters and cluster references
+
+    See trader.roles.navigator.geometry.generate_graph_from_waypoints_means_shift_clustering for
+    an example output of a means shifted cluster
+    """
+    return next(
+        filter(
+            lambda cluster: waypoint_symbol in cluster[1]["cluster_waypoints_symbols"],
+            list(graph.nodes(data=True)),
+        )
+    )
 
 
 def find_most_profitable_trade_in_system(

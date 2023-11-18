@@ -5,8 +5,8 @@ from typing import List, cast
 from loguru import logger
 
 from trader.dao.markets import (
-    get_market_trade_good_by_waypoint,
     get_market_trade_goods_by_system,
+    get_market_trade_goods_by_waypoints,
 )
 from trader.dao.waypoints import get_waypoints_by_system_symbol
 from trader.exceptions import TraderException
@@ -16,7 +16,10 @@ from trader.queues.action_queue import (
     ActionQueueElement,
     ActionQueueParameters,
 )
-from trader.roles.merchant.finder import find_most_profitable_trade_in_system
+from trader.roles.merchant.finder import (
+    find_most_profitable_trade_in_system,
+    find_waypoint_by_cluster,
+)
 from trader.roles.merchant.merchant import MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE, Merchant
 from trader.roles.navigator.geometry import (
     generate_graph_from_waypoints_means_shift_clustering,
@@ -48,7 +51,12 @@ class SimpleTrader(Common):
         )
 
     def empty_extra_goods(self):
-        # if having goods already, should empty first if needed
+        """
+        If having goods already, should empty first if needed.
+
+        This function is useful to drop off extra goods that might be on the craft from the last time this
+        ran. Handy if wanting to resume trade route as stuff was on the ship before.
+        """
         self.merchant.reload_ship()
         if self.ship.cargo.units > 0:
             logger.info(
@@ -61,24 +69,21 @@ class SimpleTrader(Common):
             graph = generate_graph_from_waypoints_means_shift_clustering(
                 waypoints=system_waypoints
             )
-            waypoints = next(
-                filter(
-                    lambda cluster: self.ship.nav.waypoint_symbol
-                    in cluster[1]["cluster_waypoints_symbols"],
-                    list(graph.nodes(data=True)),
-                )
+            current_cluster_waypoints = find_waypoint_by_cluster(
+                graph=graph, waypoint_symbol=self.ship.nav.waypoint_symbol
             )[1]["cluster_waypoints"]
-
-            trade_good = get_market_trade_good_by_waypoint(
+            trade_goods = get_market_trade_goods_by_waypoints(
                 engine=self.merchant.dao.engine,
-                waypoint_symbol=self.merchant.ship.nav.waypoint_symbol,
+                waypoint_symbols=[
+                    waypoint.symbol for waypoint in current_cluster_waypoints
+                ],
                 good_symbol=self.ship.cargo.inventory[0].symbol,
             )
             most_profitable_trade = find_most_profitable_trade_in_system(
                 maximum_purchase_price=MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE
                 * self.merchant.agent.credits,
-                trade_goods=[trade_good],
-                waypoints=waypoints,
+                trade_goods=trade_goods,
+                waypoints=current_cluster_waypoints,
                 prefer_within_cluster=True,
             )
             if most_profitable_trade:

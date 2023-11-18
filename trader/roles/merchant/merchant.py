@@ -178,7 +178,7 @@ class Merchant(Common):
                         ]
                     )
                     logger.info(
-                        f"Ship {self.ship.symbol} selling {units} units ({inventory.units - current_units} of {current_units})"
+                        f"Ship {self.ship.symbol} selling {units} units ({units + inventory.units - current_units} of {inventory.units})"
                     )
                     sale_response = self.client.sell(
                         call_sign=self.ship.symbol,

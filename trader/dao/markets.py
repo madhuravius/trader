@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import List, Optional
 
 from sqlalchemy.engine import Engine
-from sqlmodel import Field, Session, SQLModel, select
+from sqlmodel import Field, Session, SQLModel, col, select
 
 from trader.client.market import Exchange, Export, Import
 from trader.client.market import Market as MarketClient
@@ -250,3 +250,15 @@ def get_market_trade_good_by_waypoint(
             .where(MarketTradeGood.symbol == good_symbol)
         )
         return session.exec(expression).one()
+
+
+def get_market_trade_goods_by_waypoints(
+    engine: Engine, waypoint_symbols: List[str], good_symbol: str
+) -> List[MarketTradeGood]:
+    with Session(engine) as session:
+        expression = (
+            select(MarketTradeGood)
+            .where(col(MarketTradeGood.waypoint_symbol).in_(waypoint_symbols))
+            .where(MarketTradeGood.symbol == good_symbol)
+        )
+        return session.exec(expression).all()
