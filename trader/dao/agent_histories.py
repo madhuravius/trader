@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import List, Optional
+from typing import Optional, Sequence
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, col, select
@@ -14,8 +14,8 @@ class AgentHistory(SQLModel, table=True):
     credits: int
 
 
-def get_agent_histories(engine: Engine, limit: int = 20) -> List[AgentHistory]:
-    agent_histories: List[AgentHistory] = []
+def get_agent_histories(engine: Engine, limit: int = 20) -> Sequence[AgentHistory]:
+    agent_histories: Sequence[AgentHistory] = []
     with Session(engine) as session:
         agent_history_statement = (
             select(AgentHistory)
@@ -28,8 +28,8 @@ def get_agent_histories(engine: Engine, limit: int = 20) -> List[AgentHistory]:
 
 def get_agent_histories_by_date_cutoff(
     engine: Engine, cutoff: datetime
-) -> List[AgentHistory]:
-    agent_histories: List[AgentHistory] = []
+) -> Sequence[AgentHistory]:
+    agent_histories: Sequence[AgentHistory] = []
     with Session(engine) as session:
         agent_history_statement = (
             select(AgentHistory).where(AgentHistory.created_at >= cutoff).limit(1)

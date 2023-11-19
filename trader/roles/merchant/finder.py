@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from math import dist
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, Dict, List, Literal, Optional, Sequence, cast
 
 import networkx as nx
 import pandas as pd
@@ -55,8 +55,8 @@ class ArbitrageOpportunity(ArbitrageOpportunityData):
 
 
 def generate_arbitrage_opportunities(
-    market_trade_goods: List[MarketTradeGood],
-    waypoints: List[Waypoint],
+    market_trade_goods: Sequence[MarketTradeGood],
+    waypoints: List[Waypoint] | Sequence[Waypoint],
     limit: int = 10,
     sort_field: Literal["profit", "percent_profit"] = "profit",
 ) -> List[ArbitrageOpportunity]:
@@ -134,8 +134,8 @@ def generate_arbitrage_opportunities(
 
 
 def find_profitable_trades_in_system(
-    trade_goods: List[MarketTradeGood],
-    waypoints: List[Waypoint],
+    trade_goods: Sequence[MarketTradeGood],
+    waypoints: Sequence[Waypoint],
     limit: int = 10,
     prefer_within_cluster: Optional[bool] = True,
 ) -> Dict[float, ArbitrageOpportunity]:
@@ -200,8 +200,8 @@ def find_waypoint_by_cluster(graph: nx.DiGraph, waypoint_symbol: str):
 
 def find_most_profitable_trade_in_system(
     maximum_purchase_price: int | float,
-    trade_goods: List[MarketTradeGood],
-    waypoints: List[Waypoint],
+    trade_goods: Sequence[MarketTradeGood],
+    waypoints: Sequence[Waypoint],
     limit: int = 10,
     prefer_within_cluster: Optional[bool] = True,
 ) -> Optional[ArbitrageOpportunity]:

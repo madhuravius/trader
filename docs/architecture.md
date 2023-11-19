@@ -33,6 +33,18 @@ Issues resolved:
 
 > Large amounts of data do *NOT* change and are mainly static during a game period
 
+There's a few different persistence layers that all go through the DAO (SQLModel/SQLAlchemy-based long-term persistence via SQLite)
+
+* Data that can't easily be retrieved without huge latency. Ex: Must travel to market (minutes/hours) to collect market data,
+so we cache it in the data layer. These models aren't 1:1 necessarily with the backend and storing only what fields are used 
+in application code is prioritized.
+* Internal operations and structure. Ex: storing data in queues into persistence to adjust logical behavior of different classed
+fleet members. (Ex: a trader has its upcoming tasks stored in the db, and will execute them in order)
+* Client responses. Instead of using the 2 RPS limit, some requests and responses are cached with a TTL (ex: waypoint list).
+
+`Cache` - from `trader.client.request_cache` - A singleton class that acts as a request cache
+`DAO` - from `trader.dao.dao` - A singleton class that acts as a datastore for anything needing persistence and caching
+
 ### Cache Bypasses and Resets
 
 Issues resolved: 
@@ -46,12 +58,18 @@ Issues resolved:
 Issues resolved: 
 
 > Ships and actions in general take a long time to do (often >30s, and so each ship's actions can wait
+> for the preceding operation to complete)
+
+
 
 ### Graphs
 
 Issues resolved: 
 
 > The bulk of the data is heavily unstructured, as in we must determine routes based on constraints
+
+The bulk of data is geographic in nature (x, y) with additional data. Using `networkx` for the graph construction
+and being able to connect different resources together.
 
 ### Queues
 

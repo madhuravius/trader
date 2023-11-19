@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from math import dist
 from time import sleep
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from loguru import logger
 from sqlmodel import Session, select
@@ -110,7 +110,9 @@ class Common:
     def add_to_credits_spent(self, credits: int):
         self.credits_spent += credits
 
-    def fetch_waypoints_possible_for_ship(self) -> List[Waypoint] | List[WaypointDAO]:
+    def fetch_waypoints_possible_for_ship(
+        self,
+    ) -> List[Waypoint] | Sequence[WaypointDAO]:
         waypoints = get_waypoints_by_system_symbol(
             engine=self.dao.engine, system_symbol=self.ship.nav.system_symbol
         )
@@ -137,7 +139,7 @@ class Common:
             if "MARKETPLACE" not in [trait.symbol for trait in waypoint.traits]:
                 continue
             # check if exchange aleady in db / cache first, otherwise go to retrieve it from API and hydrate
-            market_exchanges: List[MarketExchange] | List[Exchange] = []
+            market_exchanges: Sequence[MarketExchange] | List[Exchange] = []
             with Session(self.dao.engine) as session:
                 market_exchanges = session.exec(
                     select(MarketExchange).where(

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, col, select
@@ -232,7 +232,7 @@ def save_client_market(
 
 def get_market_trade_goods_by_system(
     engine: Engine, system_symbol: str
-) -> List[MarketTradeGood]:
+) -> Sequence[MarketTradeGood]:
     with Session(engine) as session:
         expression = select(MarketTradeGood).where(
             MarketTradeGood.system_symbol == system_symbol
@@ -254,7 +254,7 @@ def get_market_trade_good_by_waypoint(
 
 def get_market_trade_goods_by_waypoints(
     engine: Engine, waypoint_symbols: List[str], good_symbol: str
-) -> List[MarketTradeGood]:
+) -> Sequence[MarketTradeGood]:
     with Session(engine) as session:
         expression = (
             select(MarketTradeGood)

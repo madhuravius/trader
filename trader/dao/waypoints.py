@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import selectinload
@@ -88,15 +88,15 @@ def save_client_waypoints(engine: Engine, waypoints: List[WaypointClient]):
 
 def get_waypoints_by_system_symbol(
     engine: Engine, system_symbol: str
-) -> List[Waypoint]:
-    waypoints: List[Waypoint] = []
+) -> Sequence[Waypoint]:
+    waypoints: Sequence[Waypoint] = []
     with Session(engine) as session:
         expression = (
             select(Waypoint)
             .join(WaypointTrait)
             .where(Waypoint.id == WaypointTrait.waypoint_id)
             .where(Waypoint.system_symbol == system_symbol)
-            .options(selectinload(Waypoint.traits))
+            .options(selectinload(Waypoint.traits))  # type: ignore
         )
         waypoints = session.exec(expression).all()
 

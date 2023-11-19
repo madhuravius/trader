@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from threading import Thread
 from time import sleep
-from typing import List, Optional, cast
+from typing import List, Optional, Sequence, cast
 
 from rich.console import Console
 from sqlmodel import Session, select
@@ -343,7 +343,7 @@ class Trader:
         if not self.api_key:
             raise TraderClientException("No API key present to proceed")
         self.ships(silent=True)
-        ships: List[ShipDAO] = []
+        ships: Sequence[ShipDAO] = []
         with Session(self.dao.engine) as session:
             ships = session.exec(select(ShipDAO)).all()
 
@@ -372,7 +372,7 @@ class Trader:
                 )
             )
         # include freshly bought ships that haven't been evented yet
-        ships: List[ShipDAO] = []
+        ships: Sequence[ShipDAO] = []
         if call_sign:
             ship = get_ship(engine=self.dao.engine, call_sign=call_sign)
             if ship:

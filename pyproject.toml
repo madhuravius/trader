@@ -44,6 +44,14 @@ dev = [
     "pytest-socket==0.6.*",
     "respx==0.20.*"
 ]
+docs = [
+    "mkdocs-gen-files==0.5.*",
+    "mkdocs-literate-nav==0.6.*",
+    "mkdocs-material[recommended]==9.*",
+    "mkdocs-material[imaging]==9.*",
+    "mkdocs-section-index==0.3.*",
+    "mkdocstrings[python-legacy]==0.24.*"
+]
 
 [project.scripts]
 trader = "trader.cli:cli"

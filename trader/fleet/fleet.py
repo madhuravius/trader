@@ -1,6 +1,6 @@
 from threading import Thread
 from time import sleep
-from typing import List
+from typing import List, Sequence
 
 from trader.dao.ships import Ship
 from trader.logic.leader import Leader
@@ -19,9 +19,9 @@ MAXIMUM_PROBES_PER_SYSTEM = 5
 
 class Fleet:
     api_key: str
-    ships: List[Ship]
+    ships: List[Ship] | Sequence[Ship]
 
-    def __init__(self, api_key: str, ships: List[Ship]) -> None:
+    def __init__(self, api_key: str, ships: List[Ship] | Sequence[Ship]) -> None:
         self.api_key = api_key
         self.ships = ships
 

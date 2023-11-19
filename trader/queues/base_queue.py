@@ -2,7 +2,6 @@ from typing import Any, Callable, Dict, Tuple, cast
 
 import dill as pickle
 from loguru import logger
-from sqlalchemy import delete
 from sqlmodel import Session, col, func, select
 
 from trader.dao.dao import DAO
@@ -91,8 +90,10 @@ class Queue:
         """
 
         with Session(self.dao.engine) as session:
-            expression = delete(QueueEntry).where(QueueEntry.queue_id == self.queue_id)
-            session.exec(expression)  # type: ignore
+            entries = session.exec(
+                select(QueueEntry).where(QueueEntry.queue_id == self.queue_id)
+            ).all()
+            session.delete(entries)  # type: ignore
             session.commit()
 
     def append(self, function: Callable, data: Any):

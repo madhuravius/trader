@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, col, select
@@ -56,7 +56,7 @@ def get_ship(engine: Engine, call_sign: str) -> Optional[Ship]:
     return ship
 
 
-def get_ships(engine: Engine) -> List[Ship]:
+def get_ships(engine: Engine) -> Sequence[Ship]:
     with Session(engine) as session:
         ships_statement = select(Ship)
         ships = session.exec(ships_statement).all()
@@ -65,8 +65,8 @@ def get_ships(engine: Engine) -> List[Ship]:
 
 def get_ship_events(
     engine: Engine, limit: int, call_sign: Optional[str] = None
-) -> List[Tuple[Ship, ShipEvent]]:
-    ship_events: List[Tuple[Ship, ShipEvent]] = []
+) -> Sequence[Tuple[Ship, ShipEvent]]:
+    ship_events: Sequence[Tuple[Ship, ShipEvent]] = []
     with Session(engine) as session:
         ship_statement = select(Ship)
         if call_sign:

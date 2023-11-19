@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional, Sequence
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, select
@@ -117,7 +117,7 @@ def save_client_shipyard(
 
 def get_shipyard_ships_by_waypoint(
     engine: Engine, waypoint_symbol: str, system_symbol: str
-) -> List[ShipyardShip]:
+) -> Sequence[ShipyardShip]:
     with Session(engine) as session:
         expression = (
             select(ShipyardShip)

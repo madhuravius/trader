@@ -1,6 +1,6 @@
 from itertools import product
 from math import dist
-from typing import List, cast
+from typing import List, Sequence, cast
 
 import networkx as nx
 import numpy as np
@@ -12,7 +12,7 @@ from trader.dao.waypoints import Waypoint as WaypointDAO
 
 
 def generate_graph_from_waypoints_means_shift_clustering(
-    waypoints: List[Waypoint] | List[WaypointDAO],
+    waypoints: List[Waypoint] | Sequence[WaypointDAO],
 ) -> nx.DiGraph:
     """
     Generates a graph and only connects with nearest neighbors. It will connect the nearest

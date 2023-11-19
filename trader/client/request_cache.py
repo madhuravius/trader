@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 import dill as pickle
 import httpx
 from loguru import logger
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, select
 
 from trader.dao.dao import DAO
 from trader.dao.requests import CachedRequest
@@ -109,10 +109,12 @@ class Cache(metaclass=Singleton):
     def expire_cache_records(self):
         with Session(self.dao.engine) as session:
             logger.debug("Pruning expired cache records")
-            expression = delete(CachedRequest).where(
-                CachedRequest.expiration <= datetime.now().timestamp()
-            )
-            session.exec(expression)  # type: ignore - This is done because sqlalchemy stubs are a bit off for deletes
+            expired_requests = session.exec(
+                select(CachedRequest).where(
+                    CachedRequest.expiration <= datetime.now().timestamp()
+                )
+            ).all()
+            session.delete(expired_requests)  # type: ignore - This is done because sqlalchemy stubs are a bit off for deletes
             session.commit()
 
     def run_loop(self):

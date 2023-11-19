@@ -8,4 +8,3 @@ Systems in Traders have a few different possible shapes. This is a small list:
 
 ## Possible ways to navigate through systems
 
-

@@ -6,7 +6,7 @@ PYTHON_VENV = source .venv/bin/activate &&
 .PHONY: .venv
 
 install: .venv
-	$(PYTHON_VENV) pip install -e .[build,dev]
+	$(PYTHON_VENV) pip install -e .[build,dev,docs]
 .PHONY: install
 
 install-lock: .venv
@@ -95,6 +95,12 @@ gen-lockfiles: .venv
 		--allow-unsafe \
 		--extra=dev \
 		-o requirements-dev.txt -v
+	$(PYTHON_VENV) pip-compile \
+		--resolver=backtracking \
+		--generate-hashes \
+		--allow-unsafe \
+		--extra=docs \
+		-o requirements-docs.txt -v
 .PHONY: gen-lockfiles
 
 build:
@@ -102,9 +108,5 @@ build:
 .PHONY: build
 
 start-docs:
-	docker run \
-		--rm \
-		-it \
-		-p 8000:8000 \
-		-v ${PWD}:/docs squidfunk/mkdocs-material
+	$(PYTHON_VENV) python -m mkdocs serve --dev-addr=0.0.0.0:8000
 .PHONY: start-docs

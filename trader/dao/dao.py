@@ -42,6 +42,12 @@ DB_URL = os.environ.get("DB_URL", "sqlite:///db.db")
 
 
 class DAO(metaclass=Singleton):
+    """
+    A singleton class that allows access to DB via `SQLModel`
+
+    Consumes `DB_URL` constant, which is specified via environment variable
+    """
+
     db_url: str
     engine: Engine
 

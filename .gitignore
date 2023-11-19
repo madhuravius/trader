@@ -171,4 +171,5 @@ cython_debug/
 output
 
 *.pex
+docs/reference/*
 .DS_Store
