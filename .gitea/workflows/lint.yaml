@@ -6,9 +6,13 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    container:
+      image: catthehacker/ubuntu:act-latest
+      volumes:
+        - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
     steps:
-    - uses: https://github.com/actions/checkout@v3
-    - uses: https://github.com/actions/setup-python@v4
+    - uses: https://git.team-z.dev/actions/checkout@v3
+    - uses: https://git.team-z.dev/actions/setup-python@v4
       with:
         python-version: '3.x'
 
