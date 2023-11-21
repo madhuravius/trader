@@ -52,7 +52,7 @@ class Leader(Common):
             )
             self.merchant.sell_cargo()
 
-    def determine_ideal_activity(self) -> List[ActionQueueElement]: 
+    def determine_ideal_activity(self) -> List[ActionQueueElement]:
         return []
 
     def run_loop(self):
