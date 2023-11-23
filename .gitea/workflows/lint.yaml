@@ -18,7 +18,7 @@ jobs:
         cache: 'pip'
 
     - name: Install Dependencies
-      run: make install
+      run: make install-lock-ci
 
     - name: Lint
       run: make lint

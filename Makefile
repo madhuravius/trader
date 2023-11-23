@@ -1,5 +1,6 @@
 SHELL := bash
 PYTHON_VENV = source .venv/bin/activate &&
+PIP_CONFIG_FILE := ./pip.conf
 
 .venv:
 	python -m venv .venv
@@ -12,6 +13,10 @@ install: .venv
 install-lock: .venv
 	$(PYTHON_VENV) pip install -r requirements-dev.txt
 .PHONY: install-lock
+
+install-lock-ci: .venv
+	$(PYTHON_VENV) pip install -r requirements-dev.txt --trusted-host=nexus.team-z.dev --index-url=https://nexus.team-z.dev/repository/pypi-proxy/simple
+.PHONY: install-lock-ci
 
 install-build-lock: .venv
 	$(PYTHON_VENV) pip install -r requirements-build.txt
