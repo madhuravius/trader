@@ -114,7 +114,8 @@ class Cache(metaclass=Singleton):
                     CachedRequest.expiration <= datetime.now().timestamp()
                 )
             ).all()
-            session.delete(expired_requests)  # type: ignore - This is done because sqlalchemy stubs are a bit off for deletes
+            for expired_request in expired_requests:
+                session.delete(expired_request)
             session.commit()
 
     def run_loop(self):

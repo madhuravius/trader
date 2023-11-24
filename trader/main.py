@@ -3,6 +3,7 @@ from threading import Thread
 from time import sleep
 from typing import List, Optional, Sequence, cast
 
+from loguru import logger
 from rich.console import Console
 from sqlmodel import Session, select
 
@@ -35,6 +36,7 @@ from trader.dao.shipyards import save_client_shipyard
 from trader.dao.waypoints import save_client_waypoints
 from trader.exceptions import TraderClientException
 from trader.fleet.fleet import Fleet
+from trader.logic.leader import Leader
 from trader.logic.simple_explorer import SimpleExplorer
 from trader.logic.simple_miner import SimpleMiner
 from trader.logic.simple_trader import SimpleTrader
@@ -339,6 +341,12 @@ class Trader:
         )
         explorer.run_loop()
 
+    def leader_loop(self, call_sign: str, repeat: bool) -> None:
+        if not self.api_key:
+            raise TraderClientException("No API key present to proceed")
+        leader = Leader(api_key=self.api_key, call_sign=call_sign, repeat=repeat)
+        leader.run_loop()
+
     def fleet_loop(self) -> None:
         if not self.api_key:
             raise TraderClientException("No API key present to proceed")
@@ -411,3 +419,6 @@ class Trader:
         print_as_table(
             title="Agent History", data=agent_histories, console=self.console
         )
+
+    def reset(self):
+        logger.warning("Resetting all local data!")

@@ -317,6 +317,20 @@ def trader_loop(call_sign: str, repeat: bool):
     default=False,
     help="Apply this flag if you want to run this logic loop repeatedly",
 )
+def leader_loop(call_sign: str, repeat: bool):
+    """
+    Begins a naive exploration loop for a given call sign. Ex: [yellow]cli.py explorer-loop --repeat true CALL_SIGN[/yellow]
+    """
+    trader.leader_loop(call_sign=call_sign, repeat=repeat)
+
+
+@trader_command()
+@click.argument("call_sign")
+@click.option(
+    "--repeat",
+    default=False,
+    help="Apply this flag if you want to run this logic loop repeatedly",
+)
 def explorer_loop(call_sign: str, repeat: bool):
     """
     Begins a naive exploration loop for a given call sign. Ex: [yellow]cli.py explorer-loop --repeat true CALL_SIGN[/yellow]
@@ -357,6 +371,15 @@ def agent_history():
     trader.agent_history()
 
 
+@trader_command()
+def reset():
+    """
+    Purge all local content. Will be like starting anew. Useful for when there are server resets. Ex: [yellow]cli.py reset[/yellow]
+    """
+    if click.confirm("Do you want to reset trader? This will destroy all local data!"):
+        trader.reset()
+
+
 # unique status cli command of backend
 cli.add_command(status)
 
@@ -387,6 +410,7 @@ cli.add_command(waypoints)
 
 # commands for testing more complex behaviors
 cli.add_command(explorer_loop)
+cli.add_command(leader_loop)
 cli.add_command(miner_loop)
 cli.add_command(trader_loop)
 cli.add_command(fleet_loop)
@@ -395,6 +419,9 @@ cli.add_command(fleet_loop)
 cli.add_command(fleet_summary)
 cli.add_command(ship_summary)
 cli.add_command(agent_history)
+
+# reset dangerous
+cli.add_command(reset)
 
 click.rich_click.USE_RICH_MARKUP = True
 click.rich_click.SHOW_ARGUMENTS = True
@@ -405,7 +432,13 @@ click.rich_click.COMMAND_GROUPS = {
     "cli.py": [
         {
             "name": "Logical Loops and Fleet Commands",
-            "commands": ["explorer-loop", "miner-trader-loop", "fleet-loop"],
+            "commands": [
+                "explorer-loop",
+                "leader-loop",
+                "miner-loop",
+                "trader-loop",
+                "fleet-loop",
+            ],
         },
         {
             "name": "Summaries and Reports",
