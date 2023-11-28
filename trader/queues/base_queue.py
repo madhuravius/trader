@@ -44,7 +44,7 @@ class Queue:
         count = 0
         with Session(self.dao.engine) as session:
             count_data = session.exec(
-                select([func.count(QueueEntry.id)]).where(
+                select(func.count(QueueEntry.id)).where(
                     QueueEntry.queue_id == self.queue_id
                 )
             ).one_or_none()
@@ -93,7 +93,7 @@ class Queue:
             entries = session.exec(
                 select(QueueEntry).where(QueueEntry.queue_id == self.queue_id)
             ).all()
-            session.delete(entries)  # type: ignore
+            [session.delete(entry) for entry in entries]
             session.commit()
 
     def append(self, function: Callable, data: Any):

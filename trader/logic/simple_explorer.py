@@ -56,7 +56,7 @@ class SimpleExplorer(Common):
             try:
                 if self.repeat:
                     logger.info(
-                        f"Starting iteration {iteration} of loop for ship {self.ship.symbol}"
+                        f"Starting simple explorer iteration {iteration} of loop for ship {self.ship.symbol}"
                     )
 
                 actions: List[ActionQueueElement] = [

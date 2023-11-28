@@ -1,11 +1,12 @@
 import os
-from time import sleep
-from typing import List
+from typing import Callable
 
 from loguru import logger
 
-from trader.logic.common import DEFAULT_INTERNAL_LOOP_INTERVAL, Common
-from trader.queues.action_queue import ActionQueue, ActionQueueElement
+from trader.logic.common import Common
+from trader.logic.simple_miner import SimpleMiner
+from trader.logic.simple_trader import SimpleTrader
+from trader.queues.action_queue import ActionQueue
 from trader.roles.harvester import Harvester
 from trader.roles.merchant.merchant import Merchant
 
@@ -42,6 +43,10 @@ class Leader(Common):
             queue_name="leader",
             purge=True,  # purge on start to avoid functional orphans
         )
+        # leader is a superset of other roles and will do the the most immediately needed activity
+        # it will either trade, or mine
+        self.simple_miner = SimpleMiner(api_key=api_key, call_sign=call_sign, repeat=False)
+        self.simple_trader = SimpleTrader(api_key=api_key, call_sign=call_sign, repeat=False)
 
     def empty_extra_goods(self):
         # if having goods already, should empty first if needed
@@ -52,8 +57,8 @@ class Leader(Common):
             )
             self.merchant.sell_cargo()
 
-    def determine_ideal_activity(self) -> List[ActionQueueElement]:
-        return []
+    def determine_ideal_activity(self) -> Callable:
+        return self.simple_trader.run_loop
 
     def run_loop(self):
         self.running_loop = True
@@ -66,41 +71,10 @@ class Leader(Common):
             try:
                 if self.repeat:
                     logger.info(
-                        f"Starting iteration {iteration} of loop for ship {self.ship.symbol}"
+                        f"Starting leader iteration {iteration} of loop for ship {self.ship.symbol}"
                     )
-
-                # TODO: Toggle actions based on if it's simply better to do trades with information available
-                # or mine and sell
-                # alternatively if there's no possible way this can work, don't continue right now
-
-                actions: List[ActionQueueElement] = [
-                    (
-                        self.persist_audit_performance,
-                        {"event_name": "leader-loop.begin"},
-                    ),
-                    (self.empty_extra_goods, {}),
-                    (
-                        self.persist_audit_performance,
-                        {"event_name": "leader-loop.mine"},
-                    ),
-                    (self.harvester.mine, {}),
-                    (
-                        self.persist_audit_performance,
-                        {"event_name": "leader-loop.sell"},
-                    ),
-                    (self.merchant.sell_cargo, {}),
-                    (self.log_audit_performance, {}),
-                    (
-                        self.persist_audit_performance,
-                        {"event_name": "leader-loop.finish"},
-                    ),
-                    (self.reset_audit_performance, {}),
-                ]
-                [self.action_queue.enqueue(action) for action in actions]
-
-                while self.action_queue.len():
-                    # wait for internal queue to be empty before trying again
-                    sleep(DEFAULT_INTERNAL_LOOP_INTERVAL)
+                activity = self.determine_ideal_activity()
+                activity()
             except KeyboardInterrupt:
                 os._exit(1)
             except Exception as e:

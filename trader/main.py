@@ -109,7 +109,6 @@ class Trader:
         write_api_key_to_disk(token)
         self.api_key = token
         self.client = Client(api_key=token)
-        self.client.core_client.ensure_api_key()
         print_alert(message=f"Registered as {call_sign}", console=self.console)
 
     def agent(self, silent: bool = False) -> None:

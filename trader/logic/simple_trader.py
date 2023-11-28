@@ -79,6 +79,8 @@ class SimpleTrader(Common):
                 ],
                 good_symbol=self.ship.cargo.inventory[0].symbol,
             )
+            # TODO: if NO trade goods or trade goods sample size to small, return a None
+
             most_profitable_trade = find_most_profitable_trade_in_system(
                 maximum_purchase_price=MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE
                 * self.merchant.agent.credits,
@@ -103,6 +105,10 @@ class SimpleTrader(Common):
             engine=self.merchant.dao.engine,
             system_symbol=self.merchant.ship.nav.system_symbol,
         )
+        if not trade_goods:
+            logger.warning("Unable to find profitable trade as there were no goods to be found!")
+            raise TraderException("Unable to find profitable trade to continue")
+
         most_profitable_trade = find_most_profitable_trade_in_system(
             maximum_purchase_price=MAXIMUM_PERCENT_OF_ACCOUNT_PURCHASE
             * self.merchant.agent.credits,
@@ -162,7 +168,7 @@ class SimpleTrader(Common):
             try:
                 if self.repeat:
                     logger.info(
-                        f"Starting iteration {iteration} of loop for ship {self.ship.symbol}"
+                        f"Starting simple trader iteration {iteration} of loop for ship {self.ship.symbol}"
                     )
 
                 actions: List[ActionQueueElement] = [
